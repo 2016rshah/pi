@@ -1,0 +1,680 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <setjmp.h>
+#include <string.h>
+#include <stdint.h>
+
+#define MISSING() do { \
+    fprintf(stderr,"missing code at %s:%d\n",__FILE__,__LINE__); \
+    error(); \
+} while (0)
+
+static jmp_buf escape;
+
+static int line = 0;
+static int pos = 0;
+char* token = NULL;
+char** vars = NULL;
+char** localVars = NULL;
+int localCount = 0;
+int storedChar = -33;
+int varSize = 0;
+int varCap = 8;
+int size = 0;
+int cap = 8;
+int ifcount = 0;
+int getcount = 0;
+int whileCount = 0;
+int maxParams = 0;
+static void error() {
+    fprintf(stderr,"error at %d:%d\n", line,pos);
+    longjmp(escape, 1);
+}
+
+void saveHighNumberRegisters(){
+	printf("push %%r15\n");
+	printf("push %%r14\n");
+	printf("push %%r13\n");
+	printf("push %%r12\n");
+	printf("push %%r11\n");
+	printf("push %%r10\n");
+}
+
+void saveAllRegisters(){
+	saveHighNumberRegisters();
+	printf("push %%r9\n");
+	printf("push %%r8\n");
+}
+
+void loadHighNumberRegisters(){
+	printf("pop %%r10\n");
+	printf("pop %%r11\n");
+	printf("pop %%r12\n");
+	printf("pop %%r13\n");
+	printf("pop %%r14\n");
+	printf("pop %%r15\n");
+}
+
+void loadAllRegisters(){
+	printf("pop %%r8\n");
+	printf("pop %%r9\n");
+	loadHighNumberRegisters();
+}
+
+void createIfNeeded(char *id){
+	int index = 0;
+        int found = 0;
+        while(index < varSize && found == 0){
+                if(strcmp(vars[index], id) == 0){
+                        found = 1;
+                }
+                index++;
+        }
+        if(found == 0){
+                int length = strlen(id);
+		if(varSize >= varCap){
+			varCap += 8;
+			vars = realloc(vars, varCap * sizeof(long));
+		}
+                vars[varSize] = malloc((length + 1) * sizeof(char));
+                index = 0;
+                while(index < length){
+                        vars[varSize][index] = id[index];
+                        index++;
+                }
+                vars[varSize][index] = 0;
+                varSize++;
+        }
+
+}
+void get(char *id) {
+	int localIndex = -1;
+	for(int index = 0; index < localCount; index++){
+		if(strcmp(localVars[index], id) == 0){
+			localIndex = index;
+			break;
+		}
+	}
+	if(localIndex == -1){
+		createIfNeeded(id);
+		printf("mov var%s, %%r8\n",id);
+	} else {
+		printf("movq local_%d, %%r8\n",localIndex);
+	}
+}
+
+void set(char *id) {
+	int localIndex = -1;
+	for(int index = 0; index < localCount; index++){
+		if(strcmp(localVars[index], id) == 0){
+			localIndex = index;
+			break;
+		}
+	}
+	if(localIndex == -1){
+		createIfNeeded(id);
+		printf("movq %%r10, var%s\n", id);
+	} else {
+		printf("movq %%r10, local_%d\n", localIndex);
+	}
+}
+
+
+int peekChar(void) {
+	if(storedChar != -33){
+		int temp = storedChar;
+		storedChar = -33;
+		return temp;
+	}
+    const char nextChar = getchar();
+    pos ++;
+    if (nextChar == 10) {
+        line ++;
+	pos = 0;
+    }
+    	return nextChar;
+}
+
+void consume(void) {
+	free(token);
+	int currentChar = peekChar();
+	while(currentChar == ' ' || currentChar == 10 || currentChar == 9 || currentChar  == 13){
+		currentChar = peekChar();
+	}
+	//printf("[[%c %d]]\n", rem[0], rem[0]);
+	if(currentChar == -1){
+		token = malloc(sizeof(char));
+		token[0] = 0;
+		return;
+	}
+	int toDigest = 0;
+	if(currentChar == '='){
+		currentChar = peekChar();
+		if(currentChar == '='){
+			token = malloc(2 * sizeof(char));
+			token[0] = '=';
+			token[1] = '=';
+			toDigest = 2;
+		} else {
+			storedChar = currentChar;
+			token = malloc(sizeof(char));
+			token[0] = '=';
+			toDigest = 1;
+		}
+	}else if(currentChar == '<'){
+		currentChar = peekChar();
+		if(currentChar == '>'){
+			token = malloc(2 * sizeof(char));
+			token[0] = '<';
+			token[1] = '>';
+			toDigest = 2;
+		} else {
+			storedChar = currentChar;
+			token = malloc(sizeof(char));
+			token[0] = '<';
+			toDigest = 1;
+		}
+	} else if(currentChar == '>'){
+		token = malloc(sizeof(char));
+		token[0] = '>';
+		toDigest = 1;
+	}else if(currentChar == ',' || currentChar == ';' || currentChar == '*' || currentChar == '+' || currentChar == '{' || currentChar == '}' || currentChar == '(' || currentChar == ')'){
+		token = malloc(sizeof(char));
+		token[0] = currentChar;
+		toDigest = 1;
+	} else if(currentChar >= '0' && currentChar <= '9'){ 
+		token = malloc(sizeof(char));
+		while((currentChar >= '0' && currentChar <= '9') || currentChar == '_'){
+		token = realloc(token, (toDigest + 1) * sizeof(char));
+		token[toDigest] = currentChar;
+		currentChar = peekChar();
+		toDigest++;
+		}
+		storedChar = currentChar;
+	}else{
+		token = malloc(sizeof(char));
+		while((currentChar >= 'a' && currentChar <= 'z') || (currentChar >= '0' && currentChar  <='9')){
+			token = realloc(token, (toDigest + 1) * sizeof(char));
+			token[toDigest] = currentChar;
+			currentChar = peekChar();
+			toDigest++;
+		}
+		storedChar = currentChar;
+	}
+	token = realloc(token, (toDigest + 1) * sizeof(char));
+	token[toDigest] = 0;
+	fprintf(stderr, "Current Token: %s\n", token);
+}
+
+int isWhile(void) {
+    return strcmp("while", token) == 0;
+}
+
+int isFunc(void) {
+	return strcmp("fun", token) == 0;
+}
+
+int isIf(void) {
+    return strcmp("if", token) == 0;
+}
+
+int isElse(void) {
+    return strcmp("else", token) == 0;
+}
+
+int isPrint(void) {
+	return strcmp("print", token) == 0;
+}
+
+int isRet(void) {
+	return strcmp("return", token) == 0;
+}
+
+int isSemi(void) {
+    return token[0] == ';';
+}
+
+int isComma(void) {
+	return token[0] == ',';
+}
+
+int isLeftBlock(void) {
+    return token[0] == '{';
+}
+
+int isRightBlock(void) {
+    return token[0] == '}';
+}
+
+int isEq(void) {
+    return token[0] == '=' && token[1] == 0;
+}
+
+int isEqEq(void) {
+    return token[0] == '=' && token[1] == '=';
+}
+
+int isNeq(void) {
+	return token[0] == '<' && token[1] == '>';
+}
+
+int isGreater(void) {
+	return token[0] == '>';
+}
+
+int isLesser(void) {
+	if(isNeq()) {
+		return 0;
+	}
+	return token[0] == '<';
+}
+
+int isLeft(void) {
+    return token[0] == '(';
+}
+
+int isRight(void) {
+    return token[0] == ')';
+}
+
+int isEnd(void) {
+    return token[0] == 0;
+}
+
+int isId(void) {
+	if(isIf() || isElse() || isWhile()){
+		return 0;
+	}
+ 	if((token[0] >= 'a' && token[0] <= 'z') == 0){
+		return 0;
+	}
+	int index = 1;
+	while(token[index] != 0){
+		if(((token[index] >= 'a' && token[index] <= 'z') || (token[index] >= '0' && token[index] <= '9')) == 0){
+			return 0;
+		}
+		index++;
+	}
+	return 1;
+}
+
+int isMul(void) {
+    return token[0] == '*';
+}
+
+int isPlus(void) {
+    return token[0] == '+';
+}
+
+char *getId(void) {
+	int size = 0;
+	while(token[size] != 0){
+		size++;
+	}
+	char *copy = malloc((size + 1) * sizeof(char));
+	int index = 0;
+	while(token[index] != 0){
+		copy[index] = token[index];
+		index++;
+	}
+	copy[index] = 0;
+   	return copy;
+}
+
+int isInt(void) {
+	int index = 0;
+	if(token[0] == 0){
+		return 0;
+	}
+	while(token[index] != 0){
+		if((token[index] < '0' || token[index] > '9') && token[index] != '_'){
+			return 0;
+		}
+		index++;
+	}
+	return 1;
+}
+
+uint64_t getInt(void) {
+	uint64_t value = 0;
+	int index = 0;
+	while(token[index] != 0){
+		if(token[index] != '_'){
+			value = value * 10 + token[index] - '0';
+		}
+		index++;
+	}
+	return value;
+}
+
+void expression(void);
+void seq(void);
+
+/* handle id, literals, and (...) */
+void e1() {
+	printf("mov $0, %%r8\n");
+    if (isLeft()) {
+        consume();
+	saveHighNumberRegisters();
+        expression();
+	printf("mov %%r10, %%r8\n");
+	loadHighNumberRegisters();
+        if (!isRight()) {
+            error();
+        }
+        consume();
+    } else if (isInt()) {
+        uint64_t v = getInt();
+        consume();
+	printf("mov $%lu, %%r8\n", v);
+    } else if (isId()) {
+        char *id = getId();
+        consume();
+	if(isLeft()){
+		consume();
+		int index = 0;
+		for(int j = 0; j < index; j++){
+			printf("pushq local_%d\n", j);
+		}
+		while(!isRight()){
+			expression();
+			printf("pushq %%r10\n");
+			if(isComma()){
+				consume();
+			}
+			index++;
+		}
+		if(index > maxParams){
+			maxParams = index;
+		}
+		/*for(int j = index - 1; j >= 0; j--){
+			printf("popq local_%d\n", j);
+		}*/
+		/*for(int j = 0; j < index; j++){
+			printf("pushq local_%d\n", j);
+		}*/
+		for(int j = 0; j < index; j++){
+			printf("movq %d(%%rsp), %%r8\n", 8 * (index - j));
+			printf("movq %%r8, local_%d\n", j);
+		}
+		/*int extra = 0;
+		if(index % 2 == 1){
+			printf("pushq %%r8\n");
+			extra = 1;
+		}*/
+		printf("call my_%s\n", id);
+		/*if(extra == 1){
+			printf("popq %%r8\n");
+		}*/
+		int fakeIndex = index;
+		while(index > 0){
+			index--;
+			printf("popq %%r8\n");
+		}
+		while(fakeIndex > 0){
+			fakeIndex--;
+			printf("popq local_%d\n", fakeIndex);
+		}
+		printf("movq %%rax, %%r8\n");
+		consume();
+	} else {
+        	get(id);
+	}
+	free(id);
+    } else {
+        error();
+    }
+}
+
+/* handle '*' */
+void e2(void) {
+    e1();
+	printf("mov %%r8, %%r12\n");
+    while (isMul()) {
+        consume();
+        e1();
+	printf("mov %%r12, %%rax\n");
+	printf("mulq %%r8\n");
+	printf("mov %%rax, %%r12\n");
+    }
+}
+
+/* handle '+' */
+void e3(void) {
+    e2();
+	printf("mov %%r12, %%r11\n");
+    while (isPlus()) {
+        consume();
+        e2();
+	printf("add %%r12, %%r11\n");
+    }
+}
+
+/* handle '==' */
+void e4(void) {
+    e3();
+	printf("mov %%r11, %%r10\n");
+    while (isEqEq() || isNeq() || isGreater() || isLesser()) {
+	int type = (isNeq() ? 1 : 0) + (isGreater() ? 2 : 0) + (isLesser() ? 3 : 0);
+        fprintf(stderr, "TYPE: %d\n", type);
+	consume();
+        e3();
+	printf("cmp %%r11, %%r10\n");
+	printf("mov $0, %%r9\n");
+	if(type == 0){
+		printf("sete %%r9b\n");
+	} else if(type == 1){
+		printf("setne %%r9b\n");
+	} else if(type == 2){
+		printf("seta %%r9b\n");
+	} else if(type == 3){
+		printf("setb %%r9b\n");
+	}
+	printf("mov %%r9, %%r10\n");
+    }
+}
+
+void expression(void) {
+    e4();
+}
+
+int statement(void) {
+	if (isFunc()) {
+		fprintf(stderr, "Func\n");
+		consume();
+		if (!isId()){
+			error();
+		}
+		printf("my_%s:\n", token);
+		printf("pushq %%r8\n");
+		consume();
+		if (!isLeft()){
+			error();
+		}
+		consume();
+		int pcount = 0;
+		while(isId()){
+			pcount++;
+			localVars = realloc(localVars, pcount *sizeof(long));
+			localVars[pcount - 1] = getId();
+			consume();
+			if(!isComma()){
+				break;
+			}
+			consume();
+		}
+		localCount = pcount;
+		if(pcount > maxParams){
+			maxParams = pcount;
+		}
+		if(!isRight()){
+			error();
+		}
+		consume();
+		statement();
+		for(int deleter = 0; deleter < pcount; deleter++){
+			free(localVars[deleter]);
+		}
+		printf("popq %%r8\n");
+		printf("ret\n");
+		return 1;
+	} else if(isRet()) {
+		fprintf(stderr, "Return\n");
+		consume();
+		expression();
+		printf("movq %%r10, %%rax\n");
+		printf("popq %%r8\n");
+		printf("ret\n");
+		return 1;
+	} else if(isPrint()){
+		fprintf(stderr, "Print\n");
+		consume();
+		expression();
+		printf("movq $print_format, %%rdi\n");
+        	printf("movq %%r10, %%rsi\n");
+        	printf("call  printf\n");
+		return 1;
+	} else if (isId()) {
+        char *id = getId();
+        consume();
+        if (!isEq()){
+		error();
+	}
+	//Is a assignment statement
+        consume();
+        expression();
+        set(id);
+
+        if (isSemi()) {
+            consume();
+        }
+	free(id);
+        return 1;
+    } else if (isLeftBlock()) {
+        consume();
+        seq();
+        if (!isRightBlock())
+            error();
+        consume();
+        return 1;
+    } else if (isIf()) {
+	fprintf(stderr, "IF\n");
+	ifcount++;
+	int num = ifcount;
+        consume();
+        expression();
+	printf("mov $0, %%r9\n");
+	printf("cmp %%r10, %%r9\n");
+	printf("je else%d\n", num);
+	printf("jne if%d\n", num);
+	printf("if%d:\n", num);
+        statement();
+	printf("jmp doneif%d\n", num);
+	printf("else%d:\n", num);
+        if (isElse()) {
+            consume();
+            statement();
+        }
+	printf("doneif%d:\n", num);
+        return 1;
+    } else if (isWhile()) {
+        consume();
+	whileCount++;
+	int store = whileCount;
+	printf("whileEx%d:\n", store);
+        expression();
+	printf("mov $0, %%r13\n");
+	printf("cmp %%r13, %%r10\n");
+	printf("je endWhile%d\n", store);
+	printf("whileLoop%d:\n", store);
+        statement();
+	printf("jmp whileEx%d\n", store);
+	printf("endWhile%d:\n", store);
+        return 1;
+    } else if (isSemi()) {
+        consume();
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
+void seq(void) {
+    while (statement()) { fflush(stdout); }
+}
+
+void program(void) {
+    seq();
+    if (!isEnd())
+        error();
+}
+
+void compile(void) {
+    printf("    .text\n");
+    printf("    .global main\n");
+    printf("main:\n");
+    printf("    push %%r13\n");
+    printf("    push %%r14\n");
+    printf("    push %%r15\n");
+	//rem = malloc (8 * sizeof(char));
+	vars = calloc(8, sizeof(long));
+	localVars = calloc(1, sizeof(long));
+    /*while (1) {
+        const int c = peekChar();
+	rem[size] = c == -1 ? 0 : ((char) c);
+	size++;
+	if(size >= cap){
+		cap += 8;
+		rem = realloc(rem, cap * sizeof(char));
+	}
+        if (c == -1) break;
+        //printf("    mov $p3_format,%%rdi\n");
+        //printf("    mov $%d,%%rsi\n",c);
+        //printf("    mov $%d,%%rdx\n",c);
+        //printf("    call printf\n");
+    }*/
+	printf("call my_main\n");
+    printf("    mov $0,%%rax\n");
+    printf("    pop %%r15\n");
+    printf("    pop %%r14\n");
+    printf("    pop %%r13\n");
+    printf("jmp end\n");
+	consume();
+	int x = setjmp(escape);
+	if (x == 0){
+		program();
+	}
+	printf("end:\n");
+	printf("	ret\n");
+    printf("    .data\n");
+	printf("print_format:\n");
+	char formatString2[] = "%lu\n";
+	for (int i=0; i<sizeof(formatString2); i++){
+		printf("	.byte %d\n", formatString2[i]);
+	}
+	int index = 0;
+	while(index < varSize){
+		if(vars[index] != NULL){
+			printf("var%s: .quad 0\n", vars[index]);
+		}
+		index++;
+	}
+	index = 0;
+	while(index < maxParams){
+		printf("local_%d: .quad 0\n", index);
+		index++;
+	}
+}
+
+int main(int argc, char *argv[]) {
+	token = NULL;
+    	compile();
+	free(token);
+	for(int index = 0; index < varSize; index++){
+		if(vars[index] != NULL){
+			free(vars[index]);
+		}
+	}
+	free(vars);
+    return 0;
+}
