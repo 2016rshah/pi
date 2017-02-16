@@ -1,0 +1,20 @@
+Describe your linkage convention
+
+- How are arguments passed
+Arguments are stored in heap space in variables name local_0 (for the first arg), local_1 (for the second arg), up to local_<n - 1> (for the nth arg). The function then uses the values it needs to properly run the function.
+
+- How do functions return values?
+Functions in my linkage convention return their values in the register %rax.
+
+- How do you maintain the proper stack alignment when calling printf?
+Whenever I enter a function I push once to realign the stack, then in any other section I do pushes/pops I do them in an even amount to keep the stack aligned. Right before a function returns it pops off once to misalign the stack for returning.
+
+- Explain how you enforce the scope rules, in the compiler and at runtime.
+In our current project we only have one set of local variables at a time, therefore before we call another function we can just push our current local variables onto the stack, put the new variables into the locals, and call the function. Then after the call to the function we can pop off the locals from the stack to reset out local variables to the correct ones. The compiler figures out which local variable to use by storing an array of local variable names and replacing any variable name it finds with local_<index in array> if it can be found in the local variable array.
+
+
+SOURCES
+http://stackoverflow.com/questions/38335212/calling-printf-in-x86-64-using-gnu-assembler
+https://en.wikipedia.org/wiki/Calling_convention
+https://cs.brown.edu/courses/cs033/docs/guides/x64_cheatsheet.pdf
+My p3 code
