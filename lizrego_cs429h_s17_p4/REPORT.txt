@@ -1,0 +1,19 @@
+Describe your linkage convention
+
+- How are arguments passed
+Arguments are passed on the stack. And then found later by the number argument I want, the number of arguments passed in the function call, and the number of pushes to the stack.
+
+- How do functions return values?
+When a function returns, the value should be in register %rax. Things that use the return value look in the register %rax.
+
+- How do you maintain the proper stack alignment when calling printf?
+I keep my stack aligned almost all the time in case I need to call a function. Most of the time I just push registers I need to store for later and pop them afterwards. The pushing aligns the stack. When I call a function, sometimes I will push an extra parameter to align the stack and then ignore that parameter when functions are using parameters. When that fails, I move 0 into rax before calling printf so that it doesn't have vector registers. Then it doesn't require 16 byte alignment.
+
+- Explain how you enforce the scope rules, in the compiler and at runtime.
+I have get and set methods in C where I look for variables. I look for parameters that I put in a local variable linked list first. If I don't find the local variable name, then I search my linked list of global variables. If I don't find the variable in global variables, I add to my global variable linked list. At runtime, local variables are in the stack and I've printed out the code in my get and set methods to find the local variable if it is one. Otherwise, it will use the global variables in the data section (which are so much easier for me to manage).
+
+sources:
+started with p3 code but ended up changing a lot of it. mainly used it for general expression and tokenization code
+how to store function parameters on the stack: http://www.cs.princeton.edu/courses/archive/spr09/cos217/lectures/15AssemblyFunctions.pdf
+learning how to bypass 16 byte alignment for printf: http://stackoverflow.com/questions/6212665/why-is-eax-zeroed-before-a-call-to-printf
+Jake helped me debug my assembly.
