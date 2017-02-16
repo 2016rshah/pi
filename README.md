@@ -11,7 +11,9 @@ AKA the best com-PI-ler out there.
 Okay so if you would like your code to be considered as our base:
 
 - First clone this repo
-- then copy your csid_cs429_s17_p4 directory into this directory
-- go into your p4 directory and run the command `rm -rf .git`)
+- then `git checkout p4_options`
+- then copy your `csid_cs429_s17_p4` directory into this directory
+- go into your p4 directory and run the command `rm -rf .git`
 - then commit with your full human name in the commit message somewhere (i.e "Rushi Shah's p4 submission")
-- and push 
+- and push to `p4_options`
+- checkout master to get back to the normal master branch
