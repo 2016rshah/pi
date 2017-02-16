@@ -1,0 +1,10 @@
+rax - return value of the function
+rbp - call function return code point / initial stack pointer in function
+r8 - 
+r9 - 
+r10 - 
+r11 - scratch register that is immediately assumed to be clobbered
+r12 - stack alignment register before printf
+r13 - displacement register for local variables
+r14 - number of elements pushed as arguments to function (also ends up indexing the stack) 
+r15 - indexing register for local variables
