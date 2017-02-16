@@ -12,7 +12,7 @@ Okay so if you would like your code to be considered as our base:
 
 - First clone this repo
 - then `git checkout p4_options`
-- just to make sure everything is up to date do `git rebase master`
+#- just to make sure everything is up to date do `git rebase master`
 - then copy your `csid_cs429_s17_p4` directory into this directory: `cp -r csid_cs429_s17_p4 pi`
 - go into your p4 directory and run the command `rm -rf .git`
 - then commit with your full human name in the commit message somewhere (i.e "Rushi Shah's p4 submission")
