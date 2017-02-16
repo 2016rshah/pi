@@ -4,7 +4,7 @@ AKA the best com-PI-ler out there.
 
 #Github reminders
 
-*Don't forget to `git pull` before doing anything in order to avoid merge conflicts. When in doubt, `git pull` before making any changes to the directory (editing files, etc.). Get into the habit of doing git pull as soon as you cd into the directory and before you leave it. 
+*Don't forget to `git pull` before doing anything in order to avoid merge conflicts. When in doubt, `git pull` before making any changes to the directory (editing files, etc.). Get into the habit of doing git pull as soon as you cd into the directory and before you leave it.*
 
 #Getting up and running
 
