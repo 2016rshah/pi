@@ -1,1 +1,0 @@
-easy.o: easy.S
