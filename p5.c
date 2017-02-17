@@ -19,6 +19,7 @@ enum token_type {
     PRINT_KWD,
     STRUCT_KWD,
     TYPE_KWD,
+    BELL_KWD,
     EQ, 
     EQ_EQ,
     LT,
@@ -110,12 +111,12 @@ void addStandardTypes(){
 
 /* is a type in our language (Only checks for longs right now) */
 int isTypeName(char* possibleTypeName){
-	for(int i = 0; i < definedTypeCount; i++){
-		if(strcmp(possibleTypeName, definedTypes[i]) == 0){
-			return 1;
-		}
-	}
-	return 0;
+    for(int i = 0; i < definedTypeCount; i++){
+        if(strcmp(possibleTypeName, definedTypes[i]) == 0){
+            return 1;
+        }
+    }
+    return 0;
 }
 
 /* returns true if the given character can be part of an id, false otherwise */
@@ -218,11 +219,13 @@ struct token getToken(void) {
             next_token.type = RETURN_KWD;
         } else if (strcmp(id_buffer, "print") == 0) {
             next_token.type = PRINT_KWD;
-	} else if (strcmp(id_buffer, "struct") == 0) {
-	    next_token.type = STRUCT_KWD;
+        } else if (strcmp(id_buffer, "struct") == 0) {
+            next_token.type = STRUCT_KWD;
+        } else if (strcmp(id_buffer, "bell") == 0) {
+            next_token.type = BELL_KWD;
         } else if (isTypeName(id_buffer)) {
-	    next_token.type = TYPE_KWD;
-	} else {
+            next_token.type = TYPE_KWD;
+        } else {
             next_token.type = ID;
             next_token.value.id = strcpy(malloc(id_length), id_buffer);
         }
@@ -268,6 +271,10 @@ int isReturn() {
 
 int isPrint() {
     return tokens[token_index].type == PRINT_KWD;
+}
+
+int isBell() {
+    return tokens[token_index].type == BELL_KWD;
 }
 
 int isSemi() {
@@ -727,6 +734,10 @@ int statement(struct trie_node *local_root_ptr) {
             consume();
         }
         return 1;
+    }  else if (isBell()) {
+        printf("    mov $bell_format, %%rdi");
+        printf("    call printf"); 
+        return 1;
     } else {
         return 0;
     }
@@ -788,14 +799,14 @@ void structDef(void){
     }
     consume();
     while(isType()){
-	consume();
-	if(!isId()){
-            error("expected identifier after type in struct definition");
-	}
         consume();
-	if(isSemi()){
+        if(!isId()){
+            error("expected identifier after type in struct definition");
+        }
+        consume();
+        if(isSemi()){
             consume();
-	}
+        }
     }
     if(!isRightBlock()){
         error("unexpected token found before struct closed");
@@ -805,11 +816,11 @@ void structDef(void){
 
 void program(void) {
     while (isFun() || isStruct()) {
-	if(isFun()){
+        if(isFun()){
             function();
-	} else if(isStruct()) {
-	    structDef();
-	}
+        } else if(isStruct()) {
+            structDef();
+        }
     }
     if (!isEnd())
         error("expected end of file");
@@ -824,21 +835,21 @@ void compile(void) {
     printf("    mov $0,%%rax\n");
     printf("    add $8,%%rsp\n");
     printf("    ret\n");
-    
+
     //Standard types are defined before token parsing since this knowledge is needed to know if a token is a type token
     definedTypes = calloc(10, sizeof(long));
     addStandardTypes();
-    
+
     id_buffer = malloc(10);
     id_buffer_size = 10;
     tokens = malloc(sizeof(struct token) * 100);
     token_buffer_size = 100;
     do {
         appendToken(getToken());
-	//For later token parsing we need to know if something is considered a type
-	if(token_count > 1 && tokens[token_count - 2].type == STRUCT_KWD){
-		addType(tokens[token_count - 1].value.id);
-	}
+        //For later token parsing we need to know if something is considered a type
+        if(token_count > 1 && tokens[token_count - 2].type == STRUCT_KWD){
+            addType(tokens[token_count - 1].value.id);
+        }
     } while (tokens[token_count - 1].type != END);
 
     global_root_ptr = calloc(1, sizeof(struct trie_node));
@@ -849,6 +860,8 @@ void compile(void) {
     printf("    .data\n");
     printf("output_format:\n");
     printf("    .string \"%%" PRIu64 "\\n\"\n");
+    printf("bell_format:\n");
+    printf("    .string \"\7\"");
     initVars(global_root_ptr);
 
     free(id_buffer);
