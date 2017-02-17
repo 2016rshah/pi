@@ -66,4 +66,4 @@ If anyone cares to maintain the style of my original code:
   - Parameter 5 is passed in %r8.
   - Parameter 6 is passed in %r9.
   - Parameters 7+ are located on the top of the stack in reverse order before the function is called (parameter 7 is at %rsp, parameter 8 is at %rsp + 8, and so on before the function is called).
-  - At the beginning of each function call, the original value of %rbp will be stored, and %rbp will be set to the address of parameter 7 (the address before the return value). %rbp is restored at the end of the function call.
+  - At the beginning of each function call, the original value of %rbp will be stored, and %rbp will be set to the address of the old %rbp (the address after the return value; if parameter 7 exists it will be located at %rbp + 16). %rbp is restored at the end of the function call.
