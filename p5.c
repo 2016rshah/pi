@@ -17,6 +17,8 @@ enum token_type {
     FUN_KWD,
     RETURN_KWD,
     PRINT_KWD,
+    STRUCT_KWD,
+    TYPE_KWD,
     EQ, 
     EQ_EQ,
     LT,
@@ -86,6 +88,11 @@ void appendChar(char ch) {
     }
     id_buffer[id_length] = ch;
     id_length++;
+}
+
+/* is a type in our language (Only checks for longs right now) */
+int isTypeName(char* possibleTypeName){
+	return strcmp(possibleTypeName, "long") == 0;
 }
 
 /* returns true if the given character can be part of an id, false otherwise */
@@ -188,7 +195,11 @@ struct token getToken(void) {
             next_token.type = RETURN_KWD;
         } else if (strcmp(id_buffer, "print") == 0) {
             next_token.type = PRINT_KWD;
-        } else {
+	} else if (strcmp(id_buffer, "struct") == 0) {
+	    next_token.type = STRUCT_KWD;
+        } else if (isTypeName(id_buffer)) {
+	    next_token.type = TYPE_KWD;
+	} else {
             next_token.type = ID;
             next_token.value.id = strcpy(malloc(id_length), id_buffer);
         }
@@ -218,6 +229,14 @@ int isElse() {
 
 int isFun() {
     return tokens[token_index].type == FUN_KWD;
+}
+
+int isStruct(){
+    return tokens[token_index].type == STRUCT_KWD;
+}
+
+int isType(){
+    return tokens[token_index].type == TYPE_KWD;
 }
 
 int isReturn() {
@@ -722,9 +741,42 @@ void function(void) {
     printf("    ret\n");
 }
 
+void structDef(void){
+    if(!isStruct()){
+        error("not a struct");
+    }
+    consume();
+    if(!isId()){
+        error("not a valid struct name");
+    }
+    consume();
+    if(!isLeftBlock()){
+        error("expected struct definition");
+    }
+    consume();
+    while(isType()){
+	consume();
+	if(!isId()){
+            error("expected identifier after type in struct definition");
+	}
+        consume();
+	if(isSemi()){
+            consume();
+	}
+    }
+    if(!isRightBlock()){
+        error("unexpected token found before struct closed");
+    }
+    consume();
+}
+
 void program(void) {
-    while (isFun()) {
-        function();
+    while (isFun() || isStruct()) {
+	if(isFun()){
+            function();
+	} else if(isStruct()) {
+	    structDef();
+	}
     }
     if (!isEnd())
         error("expected end of file");
