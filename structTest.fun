@@ -8,5 +8,7 @@ struct line{
 }
 fun main(){
 	point p;
+	line l;
+	long q;
 	print 1
 }

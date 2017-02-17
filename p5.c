@@ -78,6 +78,7 @@ static unsigned int while_count = 0;
 static char **definedTypes;
 static int definedTypeCount = 0;
 static int definedTypeResize = 10;
+static int standardTypeCount = 0;
 
 static void error(char *message) {
     fprintf(stderr,"error: %s\n", message);
@@ -106,6 +107,18 @@ void addType(char* typeName){
 
 void addStandardTypes(){
     addType("long");
+    standardTypeCount = definedTypeCount;
+}
+
+//Assumes that the object is already a type
+int isStructType(){
+    for(int index = 0; index < standardTypeCount; index++){
+	fprintf(stderr, "%s\n", tokens[token_index].value.id);
+        if(strcmp(tokens[token_index].value.id, definedTypes[index]) == 0){
+            return 0;
+	}
+    }
+    return 1;
 }
 
 /* is a type in our language (Only checks for longs right now) */
@@ -222,6 +235,7 @@ struct token getToken(void) {
 	    next_token.type = STRUCT_KWD;
         } else if (isTypeName(id_buffer)) {
 	    next_token.type = TYPE_KWD;
+            next_token.value.id = strdup(id_buffer);
 	} else {
             next_token.type = ID;
             next_token.value.id = strcpy(malloc(id_length), id_buffer);
@@ -651,10 +665,17 @@ int statement(struct trie_node *local_root_ptr) {
         }
         return 1;
     } else if (isType()) {
-        consume();
+	int isStruct = isStructType();
+	consume();
         if(!isId()){
             error("expected identifier after type name");
         }
+	if(isStruct){
+	    printf("    mov $%d, %%rdi\n", 16);
+	    printf("    call malloc\n");
+	}
+	char *id = getId();
+	set(id, local_root_ptr);
         consume();
         if (isSemi()){
             consume();
