@@ -19,7 +19,8 @@ enum token_type {
     PRINT_KWD,
     STRUCT_KWD,
     TYPE_KWD,
-    EQ, 
+    DEFINE_KWD,
+    EQ,
     EQ_EQ,
     LT,
     GT,
@@ -35,6 +36,7 @@ enum token_type {
     MUL,
     ID,
     INTEGER,
+    USER_OP,
     END,
 };
 
@@ -80,6 +82,8 @@ static char **definedTypes;
 static int definedTypeCount = 0;
 static int definedTypeResize = 10;
 static int standardTypeCount = 0;
+
+static char *user_op;
 
 static void error(char *message) {
     fprintf(stderr,"error: %s\n", message);
@@ -145,6 +149,11 @@ int isTypeName(char* possibleTypeName){
 /* returns true if the given character can be part of an id, false otherwise */
 int isIdChar(char ch) {
     return islower(ch) || isdigit(ch);
+}
+
+/*returns true if the given character is a user operator*/
+int isUserOp(char ch) {
+    return user_op != NULL && strstr(user_op,&ch) != NULL;
 }
 
 /* append a token to the token array */
@@ -260,10 +269,19 @@ struct token getToken(void) {
         } else if (isTypeName(id_buffer)) {
 	    next_token.type = TYPE_KWD;
             next_token.value.id = strdup(id_buffer);
-	} else {
+        } else if (strcmp(id_buffer, "define") == 0) {
+            next_token.type = DEFINE_KWD;
+        } else {
             next_token.type = ID;
             next_token.value.id = strcpy(malloc(id_length), id_buffer);
         }
+    } else if(isUserOp(next_char)) { //user operator outside define statement
+        //TODO: implement this
+        //1. get the list of tokens from the user operator struct
+        //2. get the variable that came before the operator and delete this token
+        //3. get the variable that comes after the operator
+        //4. replace a and b with actual variable names
+        //5. add the tokens to the overall list of tokens
     } else {
         error("invalid character");
     }
@@ -847,6 +865,8 @@ void compile(void) {
 	if(token_count > 1 && tokens[token_count - 2].type == STRUCT_KWD){
 		addType(tokens[token_count - 1].value.id);
 	}
+        //check if the token was define; if so, read in next few tokens manually and add to list of user operators
+        //TODO: implement this
     } while (tokens[token_count - 1].type != END);
 
     global_root_ptr = calloc(1, sizeof(struct trie_node));
