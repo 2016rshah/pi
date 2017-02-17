@@ -75,6 +75,10 @@ static struct trie_node *global_root_ptr;
 static unsigned int if_count = 0;
 static unsigned int while_count = 0;
 
+static char **definedTypes;
+static int definedTypeCount = 0;
+static int definedTypeResize = 10;
+
 static void error(char *message) {
     fprintf(stderr,"error: %s\n", message);
     longjmp(escape, 1);
@@ -90,9 +94,28 @@ void appendChar(char ch) {
     id_length++;
 }
 
+void addType(char* typeName){
+    definedTypeCount++;
+    if(definedTypeCount > definedTypeResize){
+        definedTypeResize = definedTypeResize * 2;
+        definedTypes = realloc(definedTypes, sizeof(long) * definedTypeResize);
+    }
+    definedTypes[definedTypeCount - 1] = strdup(typeName);
+    fprintf(stderr, "%s added as a type\n", typeName);
+}
+
+void addStandardTypes(){
+    addType("long");
+}
+
 /* is a type in our language (Only checks for longs right now) */
 int isTypeName(char* possibleTypeName){
-	return strcmp(possibleTypeName, "long") == 0;
+	for(int i = 0; i < definedTypeCount; i++){
+		if(strcmp(possibleTypeName, definedTypes[i]) == 0){
+			return 1;
+		}
+	}
+	return 0;
 }
 
 /* returns true if the given character can be part of an id, false otherwise */
@@ -791,13 +814,21 @@ void compile(void) {
     printf("    mov $0,%%rax\n");
     printf("    add $8,%%rsp\n");
     printf("    ret\n");
-
+    
+    //Standard types are defined before token parsing since this knowledge is needed to know if a token is a type token
+    definedTypes = calloc(10, sizeof(long));
+    addStandardTypes();
+    
     id_buffer = malloc(10);
     id_buffer_size = 10;
     tokens = malloc(sizeof(struct token) * 100);
     token_buffer_size = 100;
     do {
         appendToken(getToken());
+	//For later token parsing we need to know if something is considered a type
+	if(token_count > 1 && tokens[token_count - 2].type == STRUCT_KWD){
+		addType(tokens[token_count - 1].value.id);
+	}
     } while (tokens[token_count - 1].type != END);
 
     global_root_ptr = calloc(1, sizeof(struct trie_node));
