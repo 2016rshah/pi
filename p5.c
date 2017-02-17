@@ -35,25 +35,38 @@ enum token_type {
     END,
 };
 
+union token_value {
+    char *id;
+    uint64_t integer;
+};
+
+struct token {
+    enum token_type type;
+    union token_value value;
+};
+
 struct trie_node {
     struct trie_node *children[36];
     struct trie_node *parent;
-    int assigned;
+
+    //for the global namespace, var_num is 0 if unassigned and 1 if assigned
+    //for a local namespace, var_num is 0 if unassigned and the parameter number (1 indexed) if assigned
+    int var_num;
+    //for purposes of printing
     char ch;
 };
 
 static jmp_buf escape;
 
-static int line = 0;
-static int pos = 0;
+static char *id_buffer;
+static unsigned int id_length;
+static unsigned int id_buffer_size;
 
-static int next_char = ' ';
+static struct token *tokens;
+static unsigned int token_count;
+static unsigned int token_buffer_size;
 
-static char *tkn;
-static int tkn_len;
-static int bfr_size;
-
-static enum token_type tkn_type;
+static unsigned int token_index;
 
 static struct trie_node *global_root_ptr;
 
@@ -61,8 +74,230 @@ static unsigned int if_count = 0;
 static unsigned int while_count = 0;
 
 static void error(char *message) {
-    fprintf(stderr,"error at %d:%d - %s\n", line,pos, message);
+    fprintf(stderr,"error: %s\n", message);
     longjmp(escape, 1);
+}
+
+/* append a character to the id buffer */
+void appendChar(char ch) {
+    if (id_length == id_buffer_size) {
+        id_buffer_size *= 2;
+        id_buffer = realloc(id_buffer, id_buffer_size);
+    }
+    id_buffer[id_length] = ch;
+    id_length++;
+}
+
+/* returns true if the given character can be part of an id, false otherwise */
+int isIdChar(char ch) {
+    return islower(ch) || isdigit(ch);
+}
+
+/* append a token to the token array */
+void appendToken(struct token token) {
+    if (token_count == token_buffer_size) {
+        token_buffer_size *= 2;
+        tokens = realloc(tokens, token_buffer_size);
+    }
+    tokens[token_count] = token;
+    token_count++;
+}
+
+/* read a token from standard in */
+struct token getToken(void) {
+    struct token next_token;
+
+    static char next_char = ' ';
+
+    while (isspace(next_char)) {
+        next_char = getchar();
+    }
+
+    if (next_char == -1) {
+        next_token.type = END;
+    } else if (next_char == '=') {
+        next_char = getchar();
+        if (next_char == '=') {
+            next_char = getchar();
+            next_token.type = EQ_EQ;
+        } else {
+            next_token.type = EQ;
+        }
+    } else if (next_char == '<') {
+        next_char = getchar();
+        if (next_char == '>') {
+            next_char = getchar();
+            next_token.type = LT_GT;
+        } else {
+            next_token.type = LT;
+        }
+    } else if (next_char == '>') {
+        next_char = getchar();
+        next_token.type = GT;
+    } else if (next_char == ';') {
+        next_char = getchar();
+        next_token.type = SEMI;
+    } else if (next_char == ',') {
+        next_char = getchar();
+        next_token.type = COMMA;
+    } else if (next_char == '(') {
+        next_char = getchar();
+        next_token.type = LEFT;
+    } else if (next_char == ')') {
+        next_char = getchar();
+        next_token.type = RIGHT;
+    } else if (next_char == '{') {
+        next_char = getchar();
+        next_token.type = LEFT_BLOCK;
+    } else if (next_char == '}') {
+        next_char = getchar();
+        next_token.type = RIGHT_BLOCK;
+    } else if (next_char == '+') {
+        next_char = getchar();
+        next_token.type = PLUS;
+    } else if (next_char == '*') {
+        next_char = getchar();
+        next_token.type = MUL;
+    } else if (isdigit(next_char)) {
+        next_token.type = INTEGER;
+        next_token.value.integer = 0;
+        while (isdigit(next_char)) {
+            next_token.value.integer = next_token.value.integer * 10 + (next_char - '0');
+            next_char = getchar();
+            while (next_char == '_') {
+                next_char = getchar();
+            }
+        }
+    } else if (islower(next_char)) {
+        id_length = 0;
+        while (isIdChar(next_char)) {
+            appendChar(next_char);
+            next_char = getchar();
+        }
+        appendChar('\0');
+
+        if (strcmp(id_buffer, "if") == 0) {
+            next_token.type = IF_KWD;
+        } else if (strcmp(id_buffer, "else") == 0) {
+            next_token.type = ELSE_KWD;
+        } else if (strcmp(id_buffer, "while") == 0) {
+            next_token.type = WHILE_KWD;
+        } else if (strcmp(id_buffer, "fun") == 0) {
+            next_token.type = FUN_KWD;
+        } else if (strcmp(id_buffer, "return") == 0) {
+            next_token.type = RETURN_KWD;
+        } else if (strcmp(id_buffer, "print") == 0) {
+            next_token.type = PRINT_KWD;
+        } else {
+            next_token.type = ID;
+            next_token.value.id = strcpy(malloc(id_length), id_buffer);
+        }
+    } else {
+        error("invalid character");
+    }
+
+    return next_token;
+}
+
+/* proceed to the next token */
+void consume() {
+    token_index++;
+}
+
+int isWhile() {
+    return tokens[token_index].type == WHILE_KWD;
+}
+
+int isIf() {
+    return tokens[token_index].type == IF_KWD;
+}
+
+int isElse() {
+    return tokens[token_index].type == ELSE_KWD;
+}
+
+int isFun() {
+    return tokens[token_index].type == FUN_KWD;
+}
+
+int isReturn() {
+    return tokens[token_index].type == RETURN_KWD;
+}
+
+int isPrint() {
+    return tokens[token_index].type == PRINT_KWD;
+}
+
+int isSemi() {
+    return tokens[token_index].type == SEMI;
+}
+
+int isComma() {
+    return tokens[token_index].type == COMMA;
+}
+
+int isLeftBlock() {
+    return tokens[token_index].type == LEFT_BLOCK;
+}
+
+int isRightBlock() {
+    return tokens[token_index].type == RIGHT_BLOCK;
+}
+
+int isEq() {
+    return tokens[token_index].type == EQ;
+}
+
+int isEqEq() {
+    return tokens[token_index].type == EQ_EQ;
+}
+
+int isLt() {
+    return tokens[token_index].type == LT;
+}
+
+int isGt() {
+    return tokens[token_index].type == GT;
+}
+
+int isLtGt() {
+    return tokens[token_index].type == LT_GT;
+}
+
+int isLeft() {
+    return tokens[token_index].type == LEFT;
+}
+
+int isRight() {
+    return tokens[token_index].type == RIGHT;
+}
+
+int isEnd() {
+    return tokens[token_index].type == END;
+}
+
+int isId() {
+    return tokens[token_index].type == ID;
+}
+
+int isMul() {
+    return tokens[token_index].type == MUL;
+}
+
+int isPlus() {
+    return tokens[token_index].type == PLUS;
+}
+
+int isInt() {
+    return tokens[token_index].type == INTEGER;
+}
+
+char *getId() {
+    return tokens[token_index].value.id;
+}
+
+uint64_t getInt() {
+    return tokens[token_index].value.integer;
 }
 
 void freeTrie(struct trie_node *node_ptr) {
@@ -75,7 +310,7 @@ void freeTrie(struct trie_node *node_ptr) {
     free(node_ptr);
 }
 
-int getAssigned(char *id, struct trie_node *node_ptr) {
+int getVarNum(char *id, struct trie_node *node_ptr) {
     for (char* ch_ptr = id; *ch_ptr != 0; ch_ptr++) {
         int child_num;
         if (isdigit(*ch_ptr)) {
@@ -88,10 +323,10 @@ int getAssigned(char *id, struct trie_node *node_ptr) {
         }
         node_ptr = node_ptr->children[child_num];
     }
-    return node_ptr->assigned;
+    return node_ptr->var_num;
 }
 
-void setAssigned(char *id, struct trie_node *node_ptr, int assigned) {
+void setVarNum(char *id, struct trie_node *node_ptr, int var_num) {
     for (char* ch_ptr = id; *ch_ptr != 0; ch_ptr++) {
         int child_num;
         if (isdigit(*ch_ptr)) {
@@ -107,15 +342,15 @@ void setAssigned(char *id, struct trie_node *node_ptr, int assigned) {
         }
         node_ptr = node_ptr->children[child_num];
     }
-    node_ptr->assigned = assigned;
+    node_ptr->var_num = var_num;
 }
 
-/* prints instructions to set the value of %rax to the value of the variable*/
+/* prints instructions to set the value of %rax to the value of the variable */
 void get(char *id, struct trie_node *local_root_ptr) {
-    int assigned = getAssigned(id, local_root_ptr);
-    switch (assigned) {
+    int var_num = getVarNum(id, local_root_ptr);
+    switch (var_num) {
         case 0:
-            setAssigned(id, global_root_ptr, 1);
+            setVarNum(id, global_root_ptr, 1);
             printf("    mov %s_var,%%rax\n", id);
             break;
         case 1:
@@ -137,16 +372,16 @@ void get(char *id, struct trie_node *local_root_ptr) {
             printf("    mov %%r9,%%rax\n");
             break;
         default:
-            printf("    mov %d(%%rbp),%%rax\n", 8 * (assigned - 7));
+            printf("    mov %d(%%rbp),%%rax\n", 8 * (var_num - 7));
     }
 }
 
-/* prints instructions to set the value of the variable to the value of %rax*/
+/* prints instructions to set the value of the variable to the value of %rax */
 void set(char *id, struct trie_node *local_root_ptr) {
-    int assigned = getAssigned(id, local_root_ptr);
-    switch (assigned) {
+    int var_num = getVarNum(id, local_root_ptr);
+    switch (var_num) {
         case 0:
-            setAssigned(id, global_root_ptr, 1);
+            setVarNum(id, global_root_ptr, 1);
             printf("    mov %%rax,%s_var\n", id);
             break;
         case 1:
@@ -168,10 +403,11 @@ void set(char *id, struct trie_node *local_root_ptr) {
             printf("    mov %%rax,%%r9\n");
             break;
         default:
-            printf("    mov %%rax,%d(%%rbp)\n", 8 * (assigned - 7));
+            printf("    mov %%rax,%d(%%rbp)\n", 8 * (var_num - 7));
     }
 }
 
+/* prints the name of the variable that the given node represents */
 void printId(struct trie_node *node_ptr) {
     if (node_ptr->ch == '\0') {
         return;
@@ -180,11 +416,12 @@ void printId(struct trie_node *node_ptr) {
     printf("%c", node_ptr->ch);
 }
 
+/* generates labels for global variables and initializes their values to 0 */
 void initVars(struct trie_node *node_ptr) {
     if (node_ptr == 0) {
         return;
     }
-    if (node_ptr->assigned) {
+    if (node_ptr->var_num) {
         printId(node_ptr);
         printf("_var:\n");
         printf("    .quad 0\n");
@@ -192,225 +429,6 @@ void initVars(struct trie_node *node_ptr) {
     for (int child_num = 0; child_num < 36; child_num++) {
         initVars(node_ptr->children[child_num]);
     }
-}
-
-void append(char ch) {
-    if (tkn_len == bfr_size) {
-        bfr_size *= 2;
-        tkn = realloc(tkn, bfr_size);
-    }
-    tkn[tkn_len] = ch;
-    tkn_len++;
-}
-
-void skipChar(void) {
-    next_char = getchar();
-    pos ++;
-    if (next_char == 10) {
-        line ++;
-        pos = 0;
-    }
-}
-
-void appendChar(void) {
-    append(next_char);
-    skipChar();
-}
-
-static int isIdChar(char ch) {
-    return islower(ch) || isdigit(ch);
-}
-
-void consume() {
-    while (isspace(next_char)) {
-        skipChar();
-    }
-
-    tkn_len = 0;
-
-    if (next_char == -1) {
-        skipChar();
-        tkn_type = END;
-    } else if (next_char == '=') {
-        skipChar();
-        if (next_char == '=') {
-            skipChar();
-            tkn_type = EQ_EQ;
-        } else {
-            tkn_type = EQ;
-        }
-    } else if (next_char == '<') {
-        skipChar();
-        if (next_char == '>') {
-            skipChar();
-            tkn_type = LT_GT;
-        } else {
-            tkn_type = LT;
-        }
-    } else if (next_char == '>') {
-        skipChar();
-        tkn_type = GT;
-    } else if (next_char == ';') {
-        skipChar();
-        tkn_type = SEMI;
-    } else if (next_char == ',') {
-        skipChar();
-        tkn_type = COMMA;
-    } else if (next_char == '(') {
-        skipChar();
-        tkn_type = LEFT;
-    } else if (next_char == ')') {
-        skipChar();
-        tkn_type = RIGHT;
-    } else if (next_char == '{') {
-        skipChar();
-        tkn_type = LEFT_BLOCK;
-    } else if (next_char == '}') {
-        skipChar();
-        tkn_type = RIGHT_BLOCK;
-    } else if (next_char == '+') {
-        skipChar();
-        tkn_type = PLUS;
-    } else if (next_char == '*') {
-        skipChar();
-        tkn_type = MUL;
-    } else if (isdigit(next_char)) {
-        do {
-            appendChar();
-            while (next_char == '_') {
-                skipChar();
-            }
-        } while (isdigit(next_char));
-        append('\0');
-        tkn_type = INTEGER;
-    } else if (islower(next_char)) {
-        do {
-            appendChar();
-        } while (isIdChar(next_char));
-        append('\0');
-        if (strcmp(tkn, "if") == 0) {
-            tkn_type = IF_KWD;
-        } else if (strcmp(tkn, "else") == 0) {
-            tkn_type = ELSE_KWD;
-        } else if (strcmp(tkn, "while") == 0) {
-            tkn_type = WHILE_KWD;
-        } else if (strcmp(tkn, "fun") == 0) {
-            tkn_type = FUN_KWD;
-        } else if (strcmp(tkn, "return") == 0) {
-            tkn_type = RETURN_KWD;
-        } else if (strcmp(tkn, "print") == 0) {
-            tkn_type = PRINT_KWD;
-        } else {
-            tkn_type = ID;
-        }
-    } else {
-        error("invalid character");
-    }
-}
-
-int isWhile() {
-    return tkn_type == WHILE_KWD;
-}
-
-int isIf() {
-    return tkn_type == IF_KWD;
-}
-
-int isElse() {
-    return tkn_type == ELSE_KWD;
-}
-
-int isFun() {
-    return tkn_type == FUN_KWD;
-}
-
-int isReturn() {
-    return tkn_type == RETURN_KWD;
-}
-
-int isPrint() {
-    return tkn_type == PRINT_KWD;
-}
-
-int isSemi() {
-    return tkn_type == SEMI;
-}
-
-int isComma() {
-    return tkn_type == COMMA;
-}
-
-int isLeftBlock() {
-    return tkn_type == LEFT_BLOCK;
-}
-
-int isRightBlock() {
-    return tkn_type == RIGHT_BLOCK;
-}
-
-int isEq() {
-    return tkn_type == EQ;
-}
-
-int isEqEq() {
-    return tkn_type == EQ_EQ;
-}
-
-int isLt() {
-    return tkn_type == LT;
-}
-
-int isGt() {
-    return tkn_type == GT;
-}
-
-int isLtGt() {
-    return tkn_type == LT_GT;
-}
-
-int isLeft() {
-    return tkn_type == LEFT;
-}
-
-int isRight() {
-    return tkn_type == RIGHT;
-}
-
-int isEnd() {
-    return tkn_type == END;
-}
-
-int isId() {
-    return tkn_type == ID;
-}
-
-int isMul() {
-    return tkn_type == MUL;
-}
-
-int isPlus() {
-    return tkn_type == PLUS;
-}
-
-char *getId() {
-    return strncpy(malloc(tkn_len), tkn, tkn_len);
-}
-
-int isInt() {
-    return tkn_type == INTEGER;
-}
-
-uint64_t getInt() {
-    uint64_t value = 0;
-    for (char *ch_ptr = tkn; *ch_ptr != '\0'; ch_ptr++) {
-        if (*ch_ptr != '_') {
-            if (!isdigit(*ch_ptr)) {
-                error("expected digit");
-            }
-            value = value * 10 + (*ch_ptr - '0');
-        }
-    }
-    return value;
 }
 
 void expression(struct trie_node *);
@@ -501,7 +519,6 @@ void e1(struct trie_node *local_root_ptr) {
             get(id, local_root_ptr);
         }
         printf("    mov %%rax,%%r12\n");
-        free(id);
     } else {
         error("expected expression");
     }
@@ -590,7 +607,6 @@ int statement(struct trie_node *local_root_ptr) {
         if (isSemi()) {
             consume();
         }
-        free(id);
         return 1;
     } else if (isLeftBlock()) {
         consume();
@@ -681,20 +697,19 @@ void function(void) {
     printf("%s_fun:\n", id);
     printf("    push %%rbp\n");
     printf("    lea 16(%%rsp),%%rbp\n");
-    free(id);
     if (!isLeft()) {
         error("expected function parameter declaration");
     }
     consume();
     struct trie_node *local_root_ptr = calloc(1, sizeof(struct trie_node));
-    int assigned = 1;
+    int var_num = 1;
     while (!isRight()) {
         if (!isId()) {
             error("invalid parameter name");
         }
         char *param_id = getId();
         consume();
-        setAssigned(param_id, local_root_ptr, assigned++);
+        setVarNum(param_id, local_root_ptr, var_num++);
         free(param_id);
         if (isComma()) {
             consume();
@@ -708,7 +723,6 @@ void function(void) {
 }
 
 void program(void) {
-    consume();
     while (isFun()) {
         function();
     }
@@ -726,8 +740,14 @@ void compile(void) {
     printf("    add $8,%%rsp\n");
     printf("    ret\n");
 
-    tkn = malloc(10);
-    bfr_size = 10;
+    id_buffer = malloc(10);
+    id_buffer_size = 10;
+    tokens = malloc(sizeof(struct token) * 100);
+    token_buffer_size = 100;
+    do {
+        appendToken(getToken());
+    } while (tokens[token_count - 1].type != END);
+
     global_root_ptr = calloc(1, sizeof(struct trie_node));
     int x = setjmp(escape);
     if (x == 0) {
@@ -737,7 +757,8 @@ void compile(void) {
     printf("output_format:\n");
     printf("    .string \"%%" PRIu64 "\\n\"\n");
     initVars(global_root_ptr);
-    free(tkn);
+
+    free(id_buffer);
     freeTrie(global_root_ptr);
 }
 

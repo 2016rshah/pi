@@ -13,8 +13,8 @@ OFILES=$(patsubst %.c,%.o,$(CFILES))
 
 CFLAGS=-g -std=gnu99 -O0 -Werror -Wall
 
-p4 : $(OFILES) Makefile
-	gcc $(CFLAGS) -o p4 $(OFILES)
+p5 : $(OFILES) Makefile
+	gcc $(CFLAGS) -o p5 $(OFILES)
 
 $(OFILES) : %.o : %.c Makefile
 	gcc $(CFLAGS) -MD -c $*.c
@@ -22,9 +22,9 @@ $(OFILES) : %.o : %.c Makefile
 %.o : %.S Makefile
 	gcc -MD -c $*.S
 
-%.S : %.fun p4
+%.S : %.fun p5
 	@echo "========== $* =========="
-	./p4 < $*.fun > $*.S
+	./p5 < $*.fun > $*.S
 
 progs : $(PROGS)
 
@@ -53,7 +53,7 @@ clean :
 	rm -f *.out
 	rm -f *.d
 	rm -f *.o
-	rm -f p4
+	rm -f p5
 	rm -f *.diff
 
 -include *.d
