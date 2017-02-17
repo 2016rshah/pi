@@ -7,5 +7,6 @@ struct line{
 	point b;
 }
 fun main(){
+	point p;
 	print 1
 }

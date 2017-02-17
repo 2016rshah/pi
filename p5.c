@@ -650,7 +650,17 @@ int statement(struct trie_node *local_root_ptr) {
             consume();
         }
         return 1;
-    } else if (isLeftBlock()) {
+    } else if (isType()) {
+        consume();
+        if(!isId()){
+            error("expected identifier after type name");
+        }
+        consume();
+        if (isSemi()){
+            consume();
+        }
+        return 1;
+    }else if (isLeftBlock()) {
         consume();
         seq(local_root_ptr);
         if (!isRightBlock())
