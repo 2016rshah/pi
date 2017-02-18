@@ -61,6 +61,17 @@ struct trie_node {
     char ch;
 };
 
+//used to store user operators, their symbols, and the expressions they represent
+struct user_operator {
+    struct user_operator *next;
+    char symbol;
+    struct token *expression;
+    int expression_length;
+    //TODO: add types of variables
+    //char* type of first var
+    //char* type of second var
+};
+
 static jmp_buf escape;
 
 static char *id_buffer;
@@ -83,7 +94,8 @@ static int definedTypeCount = 0;
 static int definedTypeResize = 10;
 static int standardTypeCount = 0;
 
-static char *user_op;
+//static char *op_not_allowed = "_+*{}()|&~=<>,;\n\t\r"; //stores characters that can't be user operators
+static struct user_operator* user_ops; //stores linked list of user operators
 
 static void error(char *message) {
     fprintf(stderr,"error: %s\n", message);
@@ -151,9 +163,16 @@ int isIdChar(char ch) {
     return islower(ch) || isdigit(ch);
 }
 
-/*returns true if the given character is a user operator*/
+/*returns true if the given character is a defined user operator*/
 int isUserOp(char ch) {
-    return user_op != NULL && strstr(user_op,&ch) != NULL;
+    struct user_operator* current = user_ops;
+    while(current != NULL) {
+        if(current->symbol == ch) {
+            return 1;
+        }
+        current = current->next;
+    }
+    return 0;
 }
 
 /* append a token to the token array */
@@ -166,12 +185,8 @@ void appendToken(struct token token) {
     token_count++;
 }
 
-/* read a token from standard in */
-struct token getToken(void) {
-    struct token next_token;
-
-    static char next_char = ' ';
-
+/*removes whitespace while tokenizing and returns next non-whitespace character*/
+char removeWhitespace(char next_char) {
     while (1) {
         if (isspace(next_char)) {
             next_char = getchar();
@@ -184,7 +199,16 @@ struct token getToken(void) {
             break;
         }
     }
-    
+    return next_char;
+}
+
+/* read a token from standard in */
+struct token getToken(void) {
+    struct token next_token;
+
+    static char next_char = ' ';
+
+    next_char = removeWhitespace(next_char);        
 
     if (next_char == -1) {
         next_token.type = END;
@@ -863,11 +887,18 @@ void compile(void) {
         appendToken(getToken());
 	//For later token parsing we need to know if something is considered a type
 	if(token_count > 1 && tokens[token_count - 2].type == STRUCT_KWD){
-		addType(tokens[token_count - 1].value.id);
+	    addType(tokens[token_count - 1].value.id);
 	}
         //check if the token was define; if so, read in next few tokens manually and add to list of user operators
         //TODO: implement this
-
+        if(tokens[token_count - 1].type == DEFINE_KWD) {
+           //current token to be tokenized is the user operator
+           //char operator = removeWhitespace('_');
+           //next token is the type of the first variable
+           //next token is the type of the second variable
+           //next few tokens are the expression until token is a semicolon
+           //add this sequence of tokens to the user operator struct
+        }
     } while (tokens[token_count - 1].type != END);
 
     global_root_ptr = calloc(1, sizeof(struct trie_node));
