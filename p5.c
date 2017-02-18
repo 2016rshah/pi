@@ -139,9 +139,19 @@ struct token getToken(void) {
 
     static char next_char = ' ';
 
-    while (isspace(next_char)) {
-        next_char = getchar();
+    while (1) {
+        if (isspace(next_char)) {
+            next_char = getchar();
+        } else if (next_char == '#') {
+            while (next_char != '\n' && next_char != -1) {
+                next_char = getchar();
+            }
+            next_char = getchar();
+        } else {
+            break;
+        }
     }
+    
 
     if (next_char == -1) {
         next_token.type = END;
