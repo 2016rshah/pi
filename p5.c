@@ -19,6 +19,10 @@ enum token_type {
     PRINT_KWD,
     STRUCT_KWD,
     TYPE_KWD,
+    FINAL_KWD,//IMPLEMENT THIS
+    LONG_KWD,
+    BOOLEAN_KWD,
+    CHAR_KWD,
     EQ, 
     EQ_EQ,
     LT,
@@ -38,6 +42,7 @@ enum token_type {
     END,
 };
 
+
 union token_value {
     char *id;
     uint64_t integer;
@@ -55,6 +60,12 @@ struct trie_node {
     //for the global namespace, var_num is 0 if unassigned and 1 if assigned
     //for a local namespace, var_num is 0 if unassigned and the parameter number (1 indexed) if assigned
     int var_num;
+
+    //indicates whether or not a variable had the final keyword in front of it and is constant
+    int isConstant;
+   
+    //This is the position of the type in the typeArray and is the type of the variable 
+    int varType;
     //for purposes of printing
     char ch;
 };
@@ -107,11 +118,13 @@ void addType(char* typeName){
 }
 
 void addStandardTypes(){
+    addType("boolean");
+    addType("char");
     addType("long");
     standardTypeCount = definedTypeCount;
 }
 
-//Assumes that the object is already a type
+//Assumes that the object is already a type, returns the position of the type in definedTypes
 int isStructType(){
     for(int index = 0; index < standardTypeCount; index++){
 	fprintf(stderr, "%s\n", tokens[token_index].value.id);
@@ -121,6 +134,17 @@ int isStructType(){
     }
     return 1;
 }
+
+int findVarType(){
+    for(int index = 0; index < definedTypeCount; index++){
+        fprintf(stderr, "%s\n", tokens[token_index].value.id);
+        if(strcmp(tokens[token_index].value.id, definedTypes[index]) == 0){
+            return index;
+        }
+    }
+    return -1;
+}
+
 
 //Since a type system doesn't quite exist yet, all struct variables have to start with stru
 int isVarStruct(char* name){
@@ -257,7 +281,15 @@ struct token getToken(void) {
             next_token.type = PRINT_KWD;
 	} else if (strcmp(id_buffer, "struct") == 0) {
 	    next_token.type = STRUCT_KWD;
-        } else if (isTypeName(id_buffer)) {
+	} else if (strcmp(id_buffer, "final") == 0) {
+	    next_token.type = FINAL_KWD;
+	} else if (strcmp(id_buffer, "long") == 0) {
+	    next_token.type = LONG_KWD;
+	} else if (strcmp(id_buffer, "boolean") == 0) {
+	    next_token.type = BOOLEAN_KWD;
+	}else if (strcmp(id_buffer, "char") == 0) {
+	    next_token.type = CHAR_KWD;
+ 	}else if (isTypeName(id_buffer)) {
 	    next_token.type = TYPE_KWD;
             next_token.value.id = strdup(id_buffer);
 	} else {
@@ -306,6 +338,10 @@ int isReturn() {
 
 int isPrint() {
     return tokens[token_index].type == PRINT_KWD;
+}
+
+int isFinal() { 
+    return tokens[token_index].type == FINAL_KWD;
 }
 
 int isSemi() {
@@ -394,6 +430,22 @@ void freeTrie(struct trie_node *node_ptr) {
     free(node_ptr);
 }
 
+int getVarType(char *id, struct trie_node *node_ptr) {
+    for (char* ch_ptr = id; *ch_ptr != 0; ch_ptr++) {
+        int child_num;
+        if (isdigit(*ch_ptr)) {
+            child_num = *ch_ptr - '0';
+        } else {
+            child_num = *ch_ptr - 'a' + 10;
+        }
+        if (node_ptr->children[child_num] == 0) {
+            return 0;
+        }
+        node_ptr = node_ptr->children[child_num];
+    }
+    return node_ptr->varType;
+}
+
 int getVarNum(char *id, struct trie_node *node_ptr) {
     for (char* ch_ptr = id; *ch_ptr != 0; ch_ptr++) {
         int child_num;
@@ -410,7 +462,7 @@ int getVarNum(char *id, struct trie_node *node_ptr) {
     return node_ptr->var_num;
 }
 
-void setVarNum(char *id, struct trie_node *node_ptr, int var_num) {
+void setVarNum(char *id, struct trie_node *node_ptr, int var_num, int variableType) {
     for (char* ch_ptr = id; *ch_ptr != 0; ch_ptr++) {
         int child_num;
         if (isdigit(*ch_ptr)) {
@@ -422,6 +474,7 @@ void setVarNum(char *id, struct trie_node *node_ptr, int var_num) {
             struct trie_node *new_node_ptr = calloc(1, sizeof(struct trie_node));
             new_node_ptr->parent = node_ptr;
             new_node_ptr->ch = *ch_ptr;
+            new_node_ptr->varType = variableType;
             node_ptr->children[child_num] = new_node_ptr;
         }
         node_ptr = node_ptr->children[child_num];
@@ -434,7 +487,7 @@ void get(char *id, struct trie_node *local_root_ptr) {
     int var_num = getVarNum(id, local_root_ptr);
     switch (var_num) {
         case 0:
-            setVarNum(id, global_root_ptr, 1);
+            //setVarNum(id, global_root_ptr, 1);
             printf("    mov %s_var,%%rax\n", id);
             break;
         case 1:
@@ -461,11 +514,11 @@ void get(char *id, struct trie_node *local_root_ptr) {
 }
 
 /* prints instructions to set the value of the variable to the value of %rax */
-void set(char *id, struct trie_node *local_root_ptr) {
+void set(char *id, struct trie_node *local_root_ptr, int variableType) {
     int var_num = getVarNum(id, local_root_ptr);
     switch (var_num) {
         case 0:
-            setVarNum(id, global_root_ptr, 1);
+            setVarNum(id, global_root_ptr, 1, variableType);
             printf("    mov %%rax,%s_var\n", id);
             break;
         case 1:
@@ -708,13 +761,16 @@ int statement(struct trie_node *local_root_ptr) {
         }
         consume();
         expression(local_root_ptr);
-        set(id, local_root_ptr);
+        int variableType = getVarType(id, local_root_ptr);
+        set(id, local_root_ptr, variableType);
         if (isSemi()) {
             consume();
         }
         return 1;
     } else if (isType()) {
+	fprintf(stderr, "IS THSI RUNNING\n");
 	int isStruct = isStructType();
+        int whichVarType = findVarType();
         char* typeName = tokens[token_index].value.id;
 	consume();
         if(!isId()){
@@ -724,7 +780,7 @@ int statement(struct trie_node *local_root_ptr) {
 	    printf("    call %s_struct\n", typeName);
 	}
 	char *id = getId();
-	set(id, local_root_ptr);
+	set(id, local_root_ptr, whichVarType);
         consume();
         if (isSemi()){
             consume();
@@ -826,12 +882,14 @@ void function(void) {
     struct trie_node *local_root_ptr = calloc(1, sizeof(struct trie_node));
     int var_num = 1;
     while (!isRight()) {
+        int varType = findVarType();
+	consume();
         if (!isId()) {
             error("invalid parameter name");
         }
         char *param_id = getId();
         consume();
-        setVarNum(param_id, local_root_ptr, var_num++);
+        setVarNum(param_id, local_root_ptr, var_num++, varType);
         free(param_id);
         if (isComma()) {
             consume();
