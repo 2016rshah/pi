@@ -25,6 +25,8 @@ enum token_type {
     GT,
     LT_GT,
     SEMI,
+    LEFT_BRACKET,
+    RIGHT_BRACKET,
     COMMA,
     DOT,
     LEFT,
@@ -46,6 +48,7 @@ union token_value {
 struct token {
     enum token_type type;
     union token_value value;
+    int isArray;
 };
 
 struct trie_node {
@@ -160,6 +163,7 @@ void appendToken(struct token token) {
 /* read a token from standard in */
 struct token getToken(void) {
     struct token next_token;
+    next_token.isArray = 0;
 
     static char next_char = ' ';
 
@@ -201,6 +205,12 @@ struct token getToken(void) {
     } else if (next_char == ';') {
         next_char = getchar();
         next_token.type = SEMI;
+    } else if (next_char == '[') {
+        next_char = getchar();
+        next_token.type = LEFT_BRACKET;
+    } else if (next_char == ']') {
+        next_char = getchar();
+        next_token.type = RIGHT_BRACKET;
     } else if (next_char == ',') {
         next_char = getchar();
         next_token.type = COMMA;
@@ -255,14 +265,18 @@ struct token getToken(void) {
             next_token.type = RETURN_KWD;
         } else if (strcmp(id_buffer, "print") == 0) {
             next_token.type = PRINT_KWD;
-	} else if (strcmp(id_buffer, "struct") == 0) {
-	    next_token.type = STRUCT_KWD;
+	    } else if (strcmp(id_buffer, "struct") == 0) {
+	        next_token.type = STRUCT_KWD;
         } else if (isTypeName(id_buffer)) {
-	    next_token.type = TYPE_KWD;
+	        next_token.type = TYPE_KWD;
             next_token.value.id = strdup(id_buffer);
-	} else {
+	    } else {
             next_token.type = ID;
             next_token.value.id = strcpy(malloc(id_length), id_buffer);
+            if (next_char == '[') {
+                next_token.isArray = 1;
+                next_char = getchar();
+            }
         }
     } else {
         error("invalid character");
@@ -274,6 +288,10 @@ struct token getToken(void) {
 /* proceed to the next token */
 void consume() {
     token_index++;
+}
+
+int isArray() {
+    return tokens[token_index].isArray;
 }
 
 int isWhile() {
@@ -310,6 +328,14 @@ int isPrint() {
 
 int isSemi() {
     return tokens[token_index].type == SEMI;
+}
+
+int isLeftBracket() {
+    return tokens[token_index].type == LEFT_BRACKET;
+}
+
+int isRightBracket() {
+    return tokens[token_index].type == RIGHT_BRACKET;
 }
 
 int isComma() {
@@ -440,6 +466,22 @@ void get(char *id, struct trie_node *local_root_ptr) {
         default:
             printf("    mov %d(%%rbp),%%rax\n", 8 * (var_num + 1));
     }
+}
+
+/* prints instructions to set the value of the variable to the value of %rax */
+void setArr(char *id, struct trie_node *local_root_ptr, int arrIndex) {
+    int var_num = getVarNum(id, local_root_ptr);
+    printf("    push %%r15\n");
+    switch (var_num) {
+        case 0:
+            setVarNum(id, global_root_ptr, 1);
+            printf("    mov %s_var, %%r15\n", id);
+            break;
+        default:
+            printf("    lea %d(%%rbp), %%r15\n", 8 * (var_num + 1));
+    }
+    printf("    mov %%rax,%d(%%r15)\n", 8 * arrIndex);
+    printf("    pop %%r15\n");
 }
 
 /* prints instructions to set the value of the variable to the value of %rax */
@@ -618,40 +660,80 @@ void expression(struct trie_node *local_root_ptr) {
 
 int statement(struct trie_node *local_root_ptr) {
     if (isId()) {
+        int isArr = isArray();        
+        int arrIndex = 0;
         char *id = getId();
-        consume();
-	while(isDot()){
-	    if(!isVarStruct(id)){
-	        error("Nonstruct variable being followed by .");
+        if (isArr) {
+            consume();
+            if (!isLeftBracket()) {
+                error("Array variable not being followed by [");
             }
-	    consume();
-	    if(!isId()){
-	        error("expected identifier after dot operator");
-	    }
+            consume(); // consume [
+            if (!isInt()) {
+                error("expected number index after [");
+            }
+            arrIndex = getInt();
+            consume(); // consume int
+            if (!isRightBracket()) {
+                error("expected ] after array variable");
+            }
+        }
+        consume();
+	    while(isDot()){
+	        if(!isVarStruct(id)){
+	            error("Nonstruct variable being followed by .");
+            }
+	        consume();
+	        if(!isId()){
+	            error("expected identifier after dot operator");
+	        }
             id = getId();
-	    consume();
-	}
+	        consume();
+	    }
         if (!isEq()) {
             error("expected =");
         }
         consume();
         expression(local_root_ptr);
-        set(id, local_root_ptr);
+        if (isArr) {
+            setArr(id, local_root_ptr, arrIndex);        
+        }
+        else {
+            set(id, local_root_ptr);
+        }
         if (isSemi()) {
             consume();
         }
         return 1;
     } else if (isType()) {
-	int isStruct = isStructType();
+	    int isStruct = isStructType();
         char* typeName = tokens[token_index].value.id;
-	consume();
+	    consume();
         if(!isId()){
             error("expected identifier after type name");
         }
-	if(isStruct){
+        char* id = getId();
+        if (isArray()) {
+            consume(); // consume the id
+            if (!isLeftBracket()) {
+                error("expected [ after array variable");
+            }
+            consume(); // consume the [
+            if (!isInt()) {
+                error("expected number index after [");
+            }
+            printf("    mov $%lu, %%rdi\n", 8*getInt()); 
+            printf("    call malloc\n"); // pointer is in %rax
+            consume(); // consume the int
+            if (!isRightBracket()) {
+                error("expected ] after array variable");
+            }
+            consume(); // consume the ]
+        }
+	else if(isStruct){
 	    printf("    call %s_struct\n", typeName);
 	}
-	char *id = getId();
+
 	set(id, local_root_ptr);
         consume();
         if (isSemi()){
@@ -794,7 +876,7 @@ void structDef(void) {
         }
 	consume();
 	if (!isId()) {
-            error("expected identifier after type in struct definition");
+        error("expected identifier after type in struct definition");
 	}
         consume();
 	if (isSemi()) {
