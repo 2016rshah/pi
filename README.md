@@ -16,7 +16,9 @@ Begin to do stuff:
 
 After someone else does something, you may want to incorporate that into your branch. To do so:
 
-- Use `git fetch` to receive a local copy of the changes.
+- Use `git checkout master` to switch to the master branch
+- Use `git pull` to receive a local copy of the changes.
+- Use `git checkout <your branch name>` to switch back to your branch
 - Use `git rebase master` while on your branch to apply the new changes to your branch. You may have to resolve some conflicts.
 
 Once you have done some things that work:
