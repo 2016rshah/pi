@@ -20,6 +20,7 @@ enum token_type {
     STRUCT_KWD,
     TYPE_KWD,
     BELL_KWD,
+    DELAY_KWD,
     EQ, 
     EQ_EQ,
     LT,
@@ -27,6 +28,7 @@ enum token_type {
     LT_GT,
     SEMI,
     COMMA,
+    DOT,
     LEFT,
     RIGHT,
     LEFT_BLOCK,
@@ -79,6 +81,7 @@ static unsigned int while_count = 0;
 static char **definedTypes;
 static int definedTypeCount = 0;
 static int definedTypeResize = 10;
+static int standardTypeCount = 0;
 
 static void error(char *message) {
     fprintf(stderr,"error: %s\n", message);
@@ -107,6 +110,28 @@ void addType(char* typeName){
 
 void addStandardTypes(){
     addType("long");
+    standardTypeCount = definedTypeCount;
+}
+
+//Assumes that the object is already a type
+int isStructType(){
+    for(int index = 0; index < standardTypeCount; index++){
+	fprintf(stderr, "%s\n", tokens[token_index].value.id);
+        if(strcmp(tokens[token_index].value.id, definedTypes[index]) == 0){
+            return 0;
+	}
+    }
+    return 1;
+}
+
+//Since a type system doesn't quite exist yet, all struct variables have to start with stru
+int isVarStruct(char* name){
+    return name[0] == 's' && name[1] == 't' && name[2] == 'r' && name[3] =='u';	
+}
+
+//figures out what index a certain variable is in a struct
+int getVarIndexInStruct(char* varName, char* structName){
+    return 0; //We don't have a struct data structure at the moment
 }
 
 /* is a type in our language (Only checks for longs right now) */
@@ -140,9 +165,19 @@ struct token getToken(void) {
 
     static char next_char = ' ';
 
-    while (isspace(next_char)) {
-        next_char = getchar();
+    while (1) {
+        if (isspace(next_char)) {
+            next_char = getchar();
+        } else if (next_char == '#') {
+            while (next_char != '\n' && next_char != -1) {
+                next_char = getchar();
+            }
+            next_char = getchar();
+        } else {
+            break;
+        }
     }
+    
 
     if (next_char == -1) {
         next_token.type = END;
@@ -171,6 +206,9 @@ struct token getToken(void) {
     } else if (next_char == ',') {
         next_char = getchar();
         next_token.type = COMMA;
+    } else if (next_char == '.') {
+        next_char = getchar();
+        next_token.type = DOT;
     } else if (next_char == '(') {
         next_char = getchar();
         next_token.type = LEFT;
@@ -223,14 +261,18 @@ struct token getToken(void) {
             next_token.type = STRUCT_KWD;
         } else if (strcmp(id_buffer, "bell") == 0) {
             next_token.type = BELL_KWD;
+        } else if (strcmp(id_buffer, "delay") == 0) {
+            next_token.type = DELAY_KWD;
         } else if (isTypeName(id_buffer)) {
-            next_token.type = TYPE_KWD;
-        } else {
+	    next_token.type = TYPE_KWD;
+            next_token.value.id = strdup(id_buffer);
+	} else {
             next_token.type = ID;
             next_token.value.id = strcpy(malloc(id_length), id_buffer);
         }
     } else {
         error("invalid character");
+        next_token.type = 0;
     }
 
     return next_token;
@@ -277,12 +319,20 @@ int isBell() {
     return tokens[token_index].type == BELL_KWD;
 }
 
+int isDelay() {
+    return tokens[token_index].type == DELAY_KWD;
+}
+
 int isSemi() {
     return tokens[token_index].type == SEMI;
 }
 
 int isComma() {
     return tokens[token_index].type == COMMA;
+}
+
+int isDot() {
+    return tokens[token_index].type == DOT;
 }
 
 int isLeftBlock() {
@@ -564,7 +614,17 @@ void e1(struct trie_node *local_root_ptr) {
             printf("    pop %%rdx\n");
             printf("    pop %%rsi\n");
             printf("    pop %%rdi\n");
-        } else {
+        } else if(isDot()) { //Is a struct variable
+            printf("    movq %s_var, %%rax\n", id);
+            while(isDot()){
+                consume();
+                if(!isId()){
+                    error("Invalid use of . syntax, not followed by identifer");
+                }
+                printf("    movq %d(%%rax), %%rax\n", getVarIndexInStruct(getId(), ""));
+                consume();
+            }
+	} else {
             get(id, local_root_ptr);
         }
         printf("    mov %%rax,%%r12\n");
@@ -647,6 +707,17 @@ int statement(struct trie_node *local_root_ptr) {
     if (isId()) {
         char *id = getId();
         consume();
+	while(isDot()){
+	    if(!isVarStruct(id)){
+	        error("Nonstruct variable being followed by .");
+            }
+	    consume();
+	    if(!isId()){
+	        error("expected identifier after dot operator");
+	    }
+            id = getId();
+	    consume();
+	}
         if (!isEq()) {
             error("expected =");
         }
@@ -658,10 +729,17 @@ int statement(struct trie_node *local_root_ptr) {
         }
         return 1;
     } else if (isType()) {
-        consume();
+	int isStruct = isStructType();
+        char* typeName = tokens[token_index].value.id;
+	consume();
         if(!isId()){
             error("expected identifier after type name");
         }
+	if(isStruct){
+	    printf("    call %s_struct\n", typeName);
+	}
+	char *id = getId();
+	set(id, local_root_ptr);
         consume();
         if (isSemi()){
             consume();
@@ -735,8 +813,38 @@ int statement(struct trie_node *local_root_ptr) {
         }
         return 1;
     }  else if (isBell()) {
-        printf("    mov $bell_format, %%rdi");
-        printf("    call printf"); 
+        printf("    push %%rdi\n");
+        printf("    push %%rsi\n");
+        printf("    push %%rdx\n");
+        printf("    push %%rcx\n");
+        printf("    push %%r8\n");
+        printf("    push %%r9\n");
+        printf("    mov $bell_format,%%rdi\n");
+        printf("    call printf\n");
+        printf("    pop %%r9\n");
+        printf("    pop %%r8\n");
+        printf("    pop %%rcx\n");
+        printf("    pop %%rdx\n");
+        printf("    pop %%rsi\n");
+        printf("    pop %%rdi\n");
+        return 1;
+    } else if (isDelay()) {
+        consume();
+        expression(local_root_ptr); 
+        printf("    push %%rdi\n");
+        printf("    push %%rsi\n");
+        printf("    push %%rdx\n");
+        printf("    push %%rcx\n");
+        printf("    push %%r8\n");
+        printf("    push %%r9\n");
+        printf("    mov %%rax,%%rdi\n");
+        printf("    call usleep\n");
+        printf("    pop %%r9\n");
+        printf("    pop %%r8\n");
+        printf("    pop %%rcx\n");
+        printf("    pop %%rdx\n");
+        printf("    pop %%rsi\n");
+        printf("    pop %%rdi\n"); 
         return 1;
     } else {
         return 0;
@@ -793,21 +901,44 @@ void structDef(void){
     if(!isId()){
         error("not a valid struct name");
     }
+    char* structName = getId();
+    printf("%s_struct:\n", structName);
+    printf("    push %%r8\n");
+    int count = 0;
     consume();
     if(!isLeftBlock()){
         error("expected struct definition");
     }
     consume();
+    printf("    movq $8, %%rdi\n");
+    printf("    call malloc\n");
+    printf("    movq %%rax, %%r8\n");
     while(isType()){
-        consume();
-        if(!isId()){
+
+	printf("    movq %%r8, %%rdi\n");
+        printf("    movq $%d, %%rsi\n", count * 8 + 8);
+        printf("    call realloc\n");
+        printf("    movq %%rax, %%r8\n");
+        if(isStructType()) {
+            printf("    call %s_struct\n", tokens[token_index].value.id);
+            printf("    movq %%rax, %d(%%r8)\n", count * 8);
+	} else {
+            printf("    movq $333, %%rax\n");
+            printf("    movq %%rax, %d(%%r8)\n", count * 8);
+        }
+	consume();
+	if(!isId()){
             error("expected identifier after type in struct definition");
         }
         consume();
         if(isSemi()){
             consume();
-        }
+	}
+        count++;
     }
+    printf("    movq %%r8, %%rax\n");
+    printf("    pop %%r8\n");
+    printf("    ret\n");
     if(!isRightBlock()){
         error("unexpected token found before struct closed");
     }
