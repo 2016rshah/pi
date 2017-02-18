@@ -15,10 +15,5 @@ fun main() {
     print 2 <> 1
     print 2 < 1
     print 2 > 1
-    bell
-    delay(500000)
-    bell
-    delay(500000)
-    bell
 }
 
