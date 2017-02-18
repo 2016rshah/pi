@@ -32,7 +32,8 @@ Once you have done some things that work:
 ##General
 - `master` should only contain functioning code
 
-##Style (if anyone cares to maintain the style of my original code)
+##Style 
+If anyone cares to maintain the style of my original code:
 - Indent with 4 spaces
 - `{` on same line
 - newline before `}` always
@@ -41,3 +42,28 @@ Once you have done some things that work:
 - no space between function name and `(`
 - variables, structs, and unions use `_` separated lowercase
 - function names are in camelCase with the initial letter in lowercase
+
+##Documentation
+- Tokenization
+  - The input is converted into a list of tokens. 
+  - To add a new token, create a new entry in the `token_type` enum and add a conditional case inside `getToken`. If the token is a keyword, the additional case should be inside the `islower` case.
+- Variable Namespace
+  - The variable namespace is handled by tries.
+  - Global and local namespaces have different tries. The global namespace root is pointed to by `global_root_ptr`. Local namespaces are discarded after each function is parsed.
+  - `var_num` is a variable regarding the state of the variable. It is 0 if the variable is never referenced (the node was created because one of its children was referenced). For a global variable, it is 1 if it is referenced. In the local namespace, it is the parameter number (first argument is has `var_num` 1). 
+  - If variables need to be associated with additional information (types?), that information should probably be added to `trie_node`.
+- Expression Evaluation
+  - `expression` causes the result of the expression evaluation to be placed in %rax and maintains the values of all other registers.
+  - `e4` places its result in %r15 and may modify %r12, %r13, and %r14.
+  - `e3` places its result in %r14 and may modify %r12 and %r13.
+  - `e2` places its result in %r13 and may modify %r12.
+  - `e1` places its result in %r12.
+- Function Calls
+  - Parameter 1 is passed in %rdi.
+  - Parameter 2 is passed in %rsi.
+  - Parameter 3 is passed in %rdx.
+  - Parameter 4 is passed in %rcx.
+  - Parameter 5 is passed in %r8.
+  - Parameter 6 is passed in %r9.
+  - Parameters 7+ are located on the top of the stack in reverse order before the function is called (parameter 7 is at %rsp, parameter 8 is at %rsp + 8, and so on before the function is called).
+  - At the beginning of each function call, the original value of %rbp will be stored, and %rbp will be set to the address of the old %rbp (the address after the return value; if parameter 7 exists it will be located at %rbp + 16). %rbp is restored at the end of the function call.
