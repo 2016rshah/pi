@@ -437,26 +437,8 @@ void get(char *id, struct trie_node *local_root_ptr) {
             setVarNum(id, global_root_ptr, 1);
             printf("    mov %s_var,%%rax\n", id);
             break;
-        case 1:
-            printf("    mov %%rdi,%%rax\n");
-            break;
-        case 2:
-            printf("    mov %%rsi,%%rax\n");
-            break;
-        case 3:
-            printf("    mov %%rdx,%%rax\n");
-            break;
-        case 4:
-            printf("    mov %%rcx,%%rax\n");
-            break;
-        case 5:
-            printf("    mov %%r8,%%rax\n");
-            break;
-        case 6:
-            printf("    mov %%r9,%%rax\n");
-            break;
         default:
-            printf("    mov %d(%%rbp),%%rax\n", 8 * (var_num - 5));
+            printf("    mov %d(%%rbp),%%rax\n", 8 * (var_num + 1));
     }
 }
 
@@ -468,26 +450,8 @@ void set(char *id, struct trie_node *local_root_ptr) {
             setVarNum(id, global_root_ptr, 1);
             printf("    mov %%rax,%s_var\n", id);
             break;
-        case 1:
-            printf("    mov %%rax,%%rdi\n");
-            break;
-        case 2:
-            printf("    mov %%rax,%%rsi\n");
-            break;
-        case 3:
-            printf("    mov %%rax,%%rdx\n");
-            break;
-        case 4:
-            printf("    mov %%rax,%%rcx\n");
-            break;
-        case 5:
-            printf("    mov %%rax,%%r8\n");
-            break;
-        case 6:
-            printf("    mov %%rax,%%r9\n");
-            break;
         default:
-            printf("    mov %%rax,%d(%%rbp)\n", 8 * (var_num - 5));
+            printf("    mov %%rax,%d(%%rbp)\n", 8 * (var_num + 1));
     }
 }
 
@@ -537,12 +501,6 @@ void e1(struct trie_node *local_root_ptr) {
         consume();
         if (isLeft()) {
             consume();
-            printf("    push %%rdi\n");
-            printf("    push %%rsi\n");
-            printf("    push %%rdx\n");
-            printf("    push %%rcx\n");
-            printf("    push %%r8\n");
-            printf("    push %%r9\n");
             int params = 0;
             while (!isRight()) {
                 expression(local_root_ptr);
@@ -567,43 +525,13 @@ void e1(struct trie_node *local_root_ptr) {
             for (int index = 0; index < params; index++) {
                 printf("    popq %d(%%rsp)\n", 8 * (params - 1));
             }
-            for (int param_num = 1; param_num <= 6 && param_num <= params; param_num++) {
-                switch (param_num) {
-                    case 1:
-                        printf("    pop %%rdi\n");
-                        break;
-                    case 2:
-                        printf("    pop %%rsi\n");
-                        break;
-                    case 3:
-                        printf("    pop %%rdx\n");
-                        break;
-                    case 4:
-                        printf("    pop %%rcx\n");
-                        break;
-                    case 5:
-                        printf("    pop %%r8\n");
-                        break;
-                    case 6:
-                        printf("    pop %%r9\n");
-                        break;
-                }
-            }
             printf("    call %s_fun\n", id);
-            if (params > 6) {
-                printf("    add $%d,%%rsp\n", 8 * (params - 6));
-            }
-            printf("    pop %%r9\n");
-            printf("    pop %%r8\n");
-            printf("    pop %%rcx\n");
-            printf("    pop %%rdx\n");
-            printf("    pop %%rsi\n");
-            printf("    pop %%rdi\n");
-        } else if(isDot()) { //Is a struct variable
+            printf("    add $%d,%%rsp\n", 8 * params);
+        } else if (isDot()) { //Is a struct variable
             printf("    movq %s_var, %%rax\n", id);
-            while(isDot()){
+            while (isDot()) {
                 consume();
-                if(!isId()){
+                if (!isId()) {
                     error("Invalid use of . syntax, not followed by identifer");
                 }
                 printf("    movq %d(%%rax), %%rax\n", getVarIndexInStruct(getId(), ""));
@@ -778,21 +706,9 @@ int statement(struct trie_node *local_root_ptr) {
     } else if (isPrint()) {
         consume();
         expression(local_root_ptr);
-        printf("    push %%rdi\n");
-        printf("    push %%rsi\n");
-        printf("    push %%rdx\n");
-        printf("    push %%rcx\n");
-        printf("    push %%r8\n");
-        printf("    push %%r9\n");
         printf("    mov $output_format,%%rdi\n");
         printf("    mov %%rax,%%rsi\n");
         printf("    call printf\n");
-        printf("    pop %%r9\n");
-        printf("    pop %%r8\n");
-        printf("    pop %%rcx\n");
-        printf("    pop %%rdx\n");
-        printf("    pop %%rsi\n");
-        printf("    pop %%rdi\n");
         if (isSemi()) {
             consume();
         }
@@ -844,12 +760,12 @@ void function(void) {
     printf("    ret\n");
 }
 
-void structDef(void){
-    if(!isStruct()){
+void structDef(void) {
+    if (!isStruct()) {
         error("not a struct");
     }
     consume();
-    if(!isId()){
+    if (!isId()) {
         error("not a valid struct name");
     }
     char* structName = getId();
@@ -857,19 +773,19 @@ void structDef(void){
     printf("    push %%r8\n");
     int count = 0;
     consume();
-    if(!isLeftBlock()){
+    if (!isLeftBlock()) {
         error("expected struct definition");
     }
     consume();
     printf("    movq $8, %%rdi\n");
     printf("    call malloc\n");
     printf("    movq %%rax, %%r8\n");
-    while(isType()){
+    while (isType()) {
 	printf("    movq %%r8, %%rdi\n");
         printf("    movq $%d, %%rsi\n", count * 8 + 8);
         printf("    call realloc\n");
         printf("    movq %%rax, %%r8\n");
-        if(isStructType()) {
+        if (isStructType()) {
             printf("    call %s_struct\n", tokens[token_index].value.id);
             printf("    movq %%rax, %d(%%r8)\n", count * 8);
 	} else {
@@ -877,11 +793,11 @@ void structDef(void){
             printf("    movq %%rax, %d(%%r8)\n", count * 8);
         }
 	consume();
-	if(!isId()){
+	if (!isId()) {
             error("expected identifier after type in struct definition");
 	}
         consume();
-	if(isSemi()){
+	if (isSemi()) {
             consume();
 	}
         count++;
@@ -889,7 +805,7 @@ void structDef(void){
     printf("    movq %%r8, %%rax\n");
     printf("    pop %%r8\n");
     printf("    ret\n");
-    if(!isRightBlock()){
+    if (!isRightBlock()) {
         error("unexpected token found before struct closed");
     }
     consume();
