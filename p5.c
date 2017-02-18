@@ -70,7 +70,7 @@ struct user_operator {
     struct user_operator *next;
     char symbol;
     struct token *expression;
-    int expression_length;
+    //int expression_length;
     //TODO: add types of variables
     //char* type of first var
     //char* type of second var
@@ -101,9 +101,12 @@ static char **definedTypes;
 static int definedTypeCount = 0;
 static int definedTypeResize = 10;
 static int standardTypeCount = 0;
+
 /*static int perform = 1;*/
-//static char *op_not_allowed = "_+*{}()|&~=<>,;\n\t\r"; //stores characters that can't be user operators
-static struct user_operator* user_ops; //stores linked list of user operators
+
+static char *op_not_allowed = "_+*{}()|&~=<>,;\n\t\r"; //stores characters that can't be user operators
+static struct user_operator* user_ops; //stores array of user operators
+static int ops_tail = 0; //stores the index of the last element in the array
 
 static void error(char *message) {
     fprintf(stderr,"error: %s\n", message);
@@ -180,6 +183,14 @@ int isUserOp(char ch) {
     }
     return 0;
 }
+
+/*adds a user operator to user operator array*/
+void appendUserOp(struct user_operator operator) {
+    user_ops = realloc(user_ops, sizeof(user_ops) + sizeof(struct user_operator));
+    user_ops[ops_tail] = operator;
+    ops_tail++;
+}
+
 
 /* append a token to the token array */
 void appendToken(struct token token) {
@@ -571,8 +582,48 @@ void initVars(struct trie_node *node_ptr) {
     }
 }
 
-void expression(struct trie_node *, int perform);
-void seq(struct trie_node *, int perform);
+void setUpUserOp() {
+    //make new user operator
+    struct user_operator* operator = malloc(sizeof(struct user_operator));
+    operator->next = NULL;
+           
+    //current token to be tokenized is the user operator
+    operator->symbol = removeWhitespace('_');
+    if (strchr(op_not_allowed, operator->symbol) != NULL) { //check for invalid user operators
+        error("invalid user-defined operator symbol");
+    }
+    //add token with the user operator
+    struct token op_token;
+    op_token.type = USER_OP;
+    op_token.value.id[0] = operator->symbol;
+    appendToken(op_token);
+
+    //next token is the type of the first variable
+    appendToken(getToken()); //TODO: add type to user operator
+    //next token is the type of the second variable
+    appendToken(getToken()); //TODO: add type to user operator
+
+    //next few tokens are the expression
+    int token_idx = 0;
+    appendToken(getToken());
+    //expression until token is semicolon
+    while(tokens[token_count - 1].type != SEMI) {
+        //resize if necessary
+        if(operator->expression == NULL) {
+            operator->expression = calloc(1, sizeof(struct token));
+        } else {
+            operator->expression = realloc(operator->expression, sizeof(operator->expression) + sizeof(struct token));
+        }
+        //add token to the operator's list of tokens for expression
+        operator->expression[token_idx] = tokens[token_count - 1]; //fix for linked list
+        token_idx++; //fix for linked list
+        //get the next token
+        appendToken(getToken());
+    }
+}
+
+void expression(struct trie_node *);
+void seq(struct trie_node *);
 
 /* handle id, literals, and (...) */
 void e1(struct trie_node *local_root_ptr, int perform) {
@@ -1133,17 +1184,14 @@ void compile(void) {
         if(token_count > 1 && tokens[token_count - 2].type == STRUCT_KWD){
             addType(tokens[token_count - 1].value.id);
         }
-            //check if the token was define; if so, read in next few tokens manually and add to list of user operators
-            //TODO: implement this
-            if(tokens[token_count - 1].type == DEFINE_KWD) {
-                //current token to be tokenized is the user operator
-                //char operator = removeWhitespace('_');
-                //next token is the type of the first variable
-                //next token is the type of the second variable
-                //next few tokens are the expression until token is a semicolon
-                //add this sequence of tokens to the user operator struct
-            }
-        } while (tokens[token_count - 1].type != END);
+        
+        //check if the token was define; if so, read in next few tokens manually and add to list of user operators
+        //TODO: implement this
+        if (tokens[token_count - 1].type == DEFINE_KWD ) {
+            define();
+        }
+    
+    } while (tokens[token_count - 1].type != END);
 
         global_root_ptr = calloc(1, sizeof(struct trie_node));
         int x = setjmp(escape);
