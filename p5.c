@@ -36,6 +36,8 @@ enum token_type {
     ID,
     INTEGER,
     END,
+    SWITCH,
+    CASE,
 };
 
 union token_value {
@@ -75,6 +77,7 @@ static struct trie_node *global_root_ptr;
 
 static unsigned int if_count = 0;
 static unsigned int while_count = 0;
+static unsigned int switch_count = 0;
 
 static char **definedTypes;
 static int definedTypeCount = 0;
@@ -257,6 +260,10 @@ struct token getToken(void) {
             next_token.type = PRINT_KWD;
 	} else if (strcmp(id_buffer, "struct") == 0) {
 	    next_token.type = STRUCT_KWD;
+        } else if (strcmp(id_buffer, "switch") == 0){
+            next_token.type = SWITCH;
+        }  else if (strcmp(id_buffer, "case") == 0){
+            next_token.type = CASE;
         } else if (isTypeName(id_buffer)) {
 	    next_token.type = TYPE_KWD;
             next_token.value.id = strdup(id_buffer);
@@ -288,6 +295,12 @@ int isElse() {
     return tokens[token_index].type == ELSE_KWD;
 }
 
+int isSwitch() {
+    return tokens[token_index].type == SWITCH;
+}
+int isCase(){
+   return tokens[token_index].type == CASE;
+}
 int isFun() {
     return tokens[token_index].type == FUN_KWD;
 }
@@ -384,6 +397,9 @@ uint64_t getInt() {
     return tokens[token_index].value.integer;
 }
 
+uint64_t getLaterInt(int ind) {
+    return tokens[ind].value.integer;
+}
 void freeTrie(struct trie_node *node_ptr) {
     if (node_ptr == 0) {
         return;
