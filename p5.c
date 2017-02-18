@@ -1072,7 +1072,7 @@ void structDef(void) {
     consume();
 }
 
-void globalVarDef(void) {
+void globalVar(void) {
     if (!isType()) {
         error("expected global variable declaration");
     }
