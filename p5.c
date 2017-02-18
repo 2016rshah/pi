@@ -103,7 +103,6 @@ void addType(char* typeName){
         definedTypes = realloc(definedTypes, sizeof(long) * definedTypeResize);
     }
     definedTypes[definedTypeCount - 1] = strdup(typeName);
-    fprintf(stderr, "%s added as a type\n", typeName);
 }
 
 void addStandardTypes(){
@@ -114,7 +113,6 @@ void addStandardTypes(){
 //Assumes that the object is already a type
 int isStructType(){
     for(int index = 0; index < standardTypeCount; index++){
-	fprintf(stderr, "%s\n", tokens[token_index].value.id);
         if(strcmp(tokens[token_index].value.id, definedTypes[index]) == 0){
             return 0;
 	}
@@ -491,6 +489,10 @@ void set(char *id, struct trie_node *local_root_ptr) {
     }
 }
 
+void setAddress(){
+    printf("    movq %%rax, (%%r8)\n");
+}
+
 /* prints the name of the variable that the given node represents */
 void printId(struct trie_node *node_ptr) {
     if (node_ptr->ch == '\0') {
@@ -600,7 +602,7 @@ void e1(struct trie_node *local_root_ptr) {
             printf("    pop %%rsi\n");
             printf("    pop %%rdi\n");
         } else if(isDot()) { //Is a struct variable
-            printf("    movq %s_var, %%rax\n", id);
+            get(id, local_root_ptr);
             while(isDot()){
                 consume();
                 if(!isId()){
@@ -692,23 +694,42 @@ int statement(struct trie_node *local_root_ptr) {
     if (isId()) {
         char *id = getId();
         consume();
+	int overrideSet = 0;
+        if(isDot()){
+            get(id, local_root_ptr);
+            overrideSet = 1;
+        }
+	int displacement = -1;
 	while(isDot()){
 	    if(!isVarStruct(id)){
 	        error("Nonstruct variable being followed by .");
             }
+	    char* structName = tokens[token_index].value.id;
 	    consume();
 	    if(!isId()){
 	        error("expected identifier after dot operator");
 	    }
             id = getId();
+            if(displacement != -1){
+	    printf("    movq %d(%%rax), %%rax\n", displacement); 
+            }
+            displacement = getVarIndexInStruct(id, structName) * 8;
 	    consume();
 	}
+	if(overrideSet){
+            printf("    movq %%rax, %%r8\n");
+	    printf("    addq $%d, %%r8\n", displacement);
+        }
         if (!isEq()) {
             error("expected =");
         }
         consume();
         expression(local_root_ptr);
-        set(id, local_root_ptr);
+	if(overrideSet){
+             setAddress();
+        } else {
+             set(id, local_root_ptr);
+        }
         if (isSemi()) {
             consume();
         }
@@ -864,12 +885,16 @@ void structDef(void){
     printf("    movq $8, %%rdi\n");
     printf("    call malloc\n");
     printf("    movq %%rax, %%r8\n");
+    int selfDefined = 0;
     while(isType()){
 	printf("    movq %%r8, %%rdi\n");
         printf("    movq $%d, %%rsi\n", count * 8 + 8);
         printf("    call realloc\n");
         printf("    movq %%rax, %%r8\n");
         if(isStructType()) {
+            if(strcmp(structName, tokens[token_index].value.id) == 0){
+                selfDefined = 1;
+            }
             printf("    call %s_struct\n", tokens[token_index].value.id);
             printf("    movq %%rax, %d(%%r8)\n", count * 8);
 	} else {
@@ -877,6 +902,14 @@ void structDef(void){
             printf("    movq %%rax, %d(%%r8)\n", count * 8);
         }
 	consume();
+        //check if pointer
+	while(isMul()){
+            selfDefined = 0;
+            consume();
+        }
+        if(selfDefined){
+            error("Struct defined in itself");
+        }
 	if(!isId()){
             error("expected identifier after type in struct definition");
 	}
