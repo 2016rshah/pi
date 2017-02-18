@@ -7,7 +7,7 @@
 
 #define MISSING() do { \
     fprintf(stderr,"missing code at %s:%d\n",__FILE__,__LINE__); \
-    error("missing"); \
+    error(0, "missing");						 \
 } while (0)
 
 enum token_type {
@@ -81,9 +81,16 @@ static int definedTypeCount = 0;
 static int definedTypeResize = 10;
 static int standardTypeCount = 0;
 
-static void error(char *message) {
-    fprintf(stderr,"error: %s\n", message);
-    longjmp(escape, 1);
+static void error(int errorCode, char *message) {
+    switch (errorCode) {
+    case 0: //generic error message
+	fprintf(stderr, "error: %s\n", message);
+	longjmp(escape, 1);
+	break;
+    case 1: // missing right paren
+	fprintf(stderr, "MISSING PAREN: %s\n", message);
+	break;
+    }
 }
 
 /* append a character to the id buffer */
@@ -265,7 +272,7 @@ struct token getToken(void) {
             next_token.value.id = strcpy(malloc(id_length), id_buffer);
         }
     } else {
-        error("invalid character");
+	error(0, "invalid character");
     }
 
     return next_token;
@@ -525,7 +532,7 @@ void e1(struct trie_node *local_root_ptr) {
         expression(local_root_ptr);
         printf("    mov %%rax,%%r12\n");
         if (!isRight()) {
-            error("unclosed parenthesis expression");
+            error(1, "unclosed parenthesis expression");
         }
         consume();
     } else if (isInt()) {
@@ -604,7 +611,7 @@ void e1(struct trie_node *local_root_ptr) {
             while(isDot()){
                 consume();
                 if(!isId()){
-                    error("Invalid use of . syntax, not followed by identifer");
+                    error(0, "Invalid use of . syntax, not followed by identifer");
                 }
                 printf("    movq %d(%%rax), %%rax\n", getVarIndexInStruct(getId(), ""));
                 consume();
@@ -614,7 +621,7 @@ void e1(struct trie_node *local_root_ptr) {
         }
         printf("    mov %%rax,%%r12\n");
     } else {
-        error("expected expression");
+        error(0, "expected expression");
     }
 }
 
@@ -694,17 +701,17 @@ int statement(struct trie_node *local_root_ptr) {
         consume();
 	while(isDot()){
 	    if(!isVarStruct(id)){
-	        error("Nonstruct variable being followed by .");
+	        error(0, "Nonstruct variable being followed by .");
             }
 	    consume();
 	    if(!isId()){
-	        error("expected identifier after dot operator");
+	        error(0, "expected identifier after dot operator");
 	    }
             id = getId();
 	    consume();
 	}
         if (!isEq()) {
-            error("expected =");
+            error(0, "expected =");
         }
         consume();
         expression(local_root_ptr);
@@ -718,7 +725,7 @@ int statement(struct trie_node *local_root_ptr) {
         char* typeName = tokens[token_index].value.id;
 	consume();
         if(!isId()){
-            error("expected identifier after type name");
+            error(0, "expected identifier after type name");
         }
 	if(isStruct){
 	    printf("    call %s_struct\n", typeName);
@@ -734,7 +741,7 @@ int statement(struct trie_node *local_root_ptr) {
         consume();
         seq(local_root_ptr);
         if (!isRightBlock())
-            error("unclosed statement block");
+            error(0, "unclosed statement block");
         consume();
         return 1;
     } else if (isIf()) {
@@ -808,11 +815,11 @@ void seq(struct trie_node *local_root_ptr) {
 
 void function(void) {
     if (!isFun()) {
-        error("expected fun");
+        error(0, "expected fun");
     }
     consume();
     if (!isId()) {
-        error("invalid function name");
+        error(0, "invalid function name");
     }
     char *id = getId();
     consume();
@@ -820,14 +827,14 @@ void function(void) {
     printf("    push %%rbp\n");
     printf("    mov %%rsp,%%rbp\n");
     if (!isLeft()) {
-        error("expected function parameter declaration");
+        error(0, "expected function parameter declaration");
     }
     consume();
     struct trie_node *local_root_ptr = calloc(1, sizeof(struct trie_node));
     int var_num = 1;
     while (!isRight()) {
         if (!isId()) {
-            error("invalid parameter name");
+            error(0, "invalid parameter name");
         }
         char *param_id = getId();
         consume();
@@ -846,11 +853,11 @@ void function(void) {
 
 void structDef(void){
     if(!isStruct()){
-        error("not a struct");
+        error(0, "not a struct");
     }
     consume();
     if(!isId()){
-        error("not a valid struct name");
+        error(0, "not a valid struct name");
     }
     char* structName = getId();
     printf("%s_struct:\n", structName);
@@ -858,7 +865,7 @@ void structDef(void){
     int count = 0;
     consume();
     if(!isLeftBlock()){
-        error("expected struct definition");
+        error(0, "expected struct definition");
     }
     consume();
     printf("    movq $8, %%rdi\n");
@@ -878,7 +885,7 @@ void structDef(void){
         }
 	consume();
 	if(!isId()){
-            error("expected identifier after type in struct definition");
+            error(0, "expected identifier after type in struct definition");
 	}
         consume();
 	if(isSemi()){
@@ -890,7 +897,7 @@ void structDef(void){
     printf("    pop %%r8\n");
     printf("    ret\n");
     if(!isRightBlock()){
-        error("unexpected token found before struct closed");
+        error(0, "unexpected token found before struct closed");
     }
     consume();
 }
@@ -904,7 +911,7 @@ void program(void) {
 	}
     }
     if (!isEnd())
-        error("expected end of file");
+        error(0, "expected end of file");
 }
 
 void compile(void) {
