@@ -951,6 +951,7 @@ void compile(void) {
 	}
         //check if the token was define; if so, read in next few tokens manually and add to list of user operators
         //TODO: implement this
+
     } while (tokens[token_count - 1].type != END);
 
     global_root_ptr = calloc(1, sizeof(struct trie_node));
