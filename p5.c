@@ -410,15 +410,15 @@ struct token *getToken(void) {
             next_token->type = DEFINE_KWD;
 	} else if (strcmp(id_buffer, "struct") == 0) {
 	    next_token.type = STRUCT_KWD;
-	} else if (strcmp(id_buffer, "final") == 0) {
-	    next_token.type = FINAL_KWD;
 	} else if (strcmp(id_buffer, "long") == 0) {
 	    next_token.type = LONG_KWD;
+	} else if (strcmp(id_buffer, "char") == 0) {
+	    next_token.type = CHAR_KWD;
 	} else if (strcmp(id_buffer, "boolean") == 0) {
 	    next_token.type = BOOLEAN_KWD;
-	}else if (strcmp(id_buffer, "char") == 0) {
-	    next_token.type = CHAR_KWD;
- 	}else if (isTypeName(id_buffer)) {
+	} else if (strcmp(id_buffer, "final") == 0) {
+	    next_token.type = FINAL_KWD;
+ 	} else if (isTypeName(id_buffer)) {
 	    next_token.type = TYPE_KWD;
             next_token.value.id = strdup(id_buffer);
 	} else {
@@ -503,6 +503,18 @@ int isWindowEnd() {
 
 int isFinal() { 
     return tokens[token_index].type == FINAL_KWD;
+}
+
+int isLong() {
+    return tokens[token_index].type == LONG_KWD;
+}
+
+int isChar() {
+    return tokens[token_index].type == CHAR_KWD;
+}
+
+int isBoolean() {
+    return tokens[token_index].type == BOOLEAN_KWD;
 }
 
 int isSemi() {
@@ -600,11 +612,11 @@ int getVarType(char *id, struct trie_node *node_ptr) {
             child_num = *ch_ptr - 'a' + 10;
         }
         if (node_ptr->children[child_num] == 0) {
-            return 0;
+            return node_ptr->varType;
         }
         node_ptr = node_ptr->children[child_num];
     }
-    return node_ptr->varType;
+    return -1;
 }
 
 int getVarNum(char *id, struct trie_node *node_ptr) {
