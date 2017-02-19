@@ -14,7 +14,7 @@ OFILES=$(patsubst %.c,%.o,$(CFILES))
 CFLAGS=-g -std=gnu99 -O0 -Werror -Wall
 
 p5 : $(OFILES) Makefile
-	gcc $(CFLAGS) -o p5 $(OFILES)
+	gcc $(CFLAGS) -o p5 $(OFILES) -lGL -lGLU -lglut
 
 $(OFILES) : %.o : %.c Makefile
 	gcc $(CFLAGS) -MD -c $*.c
@@ -29,7 +29,7 @@ $(OFILES) : %.o : %.c Makefile
 progs : $(PROGS)
 
 $(PROGS) : % : %.o
-	gcc -o $@ $*.o
+	gcc -o $@ $*.o graphicfuncs.o -lGL -lGLU -lglut
 
 outs : $(OUTS)
 

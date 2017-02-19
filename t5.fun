@@ -4,7 +4,7 @@ fun things(a,b) {
 }
 
 fun main() {
-    a = things(10,20,30,40)
-    a = things(100,200)
+    long a = things(10,20,30,40)
+    long a = things(100,200)
 }
 
