@@ -98,7 +98,7 @@ static char **definedTypes;
 static int definedTypeCount = 0;
 static int definedTypeResize = 10;
 static int standardTypeCount = 0;
-
+/*static int perform = 1;*/
 //static char *op_not_allowed = "_+*{}()|&~=<>,;\n\t\r"; //stores characters that can't be user operators
 static struct user_operator* user_ops; //stores linked list of user operators
 
@@ -559,23 +559,27 @@ void initVars(struct trie_node *node_ptr) {
     }
 }
 
-void expression(struct trie_node *);
-void seq(struct trie_node *);
+void expression(struct trie_node *, int perform);
+void seq(struct trie_node *, int perform);
 
 /* handle id, literals, and (...) */
-void e1(struct trie_node *local_root_ptr) {
+void e1(struct trie_node *local_root_ptr, int perform) {
     if (isLeft()) {
         consume();
-        expression(local_root_ptr);
-        printf("    mov %%rax,%%r12\n");
+        expression(local_root_ptr, perform);
+        if(perform){
+         printf("    mov %%rax,%%r12\n");
+        }
         if (!isRight()) {
             error("unclosed parenthesis expression");
         }
         consume();
     } else if (isInt()) {
+        if(perform){
         uint64_t v = getInt();
-        consume();
         printf("    mov $%" PRIu64 ",%%r12\n", v);
+        }
+        consume();
     } else if (isId()) {
         char *id = getId();
         consume();
@@ -583,22 +587,26 @@ void e1(struct trie_node *local_root_ptr) {
             consume();
             int params = 0;
             while (!isRight()) {
-                expression(local_root_ptr);
+                expression(local_root_ptr, perform);
                 if (isComma()) {
                     consume();
                 }
                 params++;
+                if(perform){
                 if (params % 2 == 0) {
                     printf("    mov %%rax,(%%rsp)\n");
                 } else {
                     printf("    push %%rax\n");
                     printf("    sub $8,%%rsp\n");
                 }
+               }
             }
             consume();
+
             if (params % 2 != 0) {
                 params++;
             }
+            if(perform){
             for (int index = 0; index < params; index++) {
                 printf("    pushq %d(%%rsp)\n", 16 * index);
             }
@@ -607,73 +615,93 @@ void e1(struct trie_node *local_root_ptr) {
             }
             printf("    call %s_fun\n", id);
             printf("    add $%d,%%rsp\n", 8 * params);
+           }
         } else if (isDot()) { //Is a struct variable
+            if(perform){  
             printf("    movq %s_var, %%rax\n", id);
+            }
             while (isDot()) {
                 consume();
+                if(perform){
                 if (!isId()) {
                     error("Invalid use of . syntax, not followed by identifer");
                 }
                 printf("    movq %d(%%rax), %%rax\n", getVarIndexInStruct(getId(), ""));
+                }
                 consume();
             }
         } else {
             get(id, local_root_ptr);
         }
+        if(perform){
         printf("    mov %%rax,%%r12\n");
+       }
     } else {
         error("expected expression");
     }
 }
 
 /* handle '*' */
-void e2(struct trie_node *local_root_ptr) {
-    e1(local_root_ptr);
+void e2(struct trie_node *local_root_ptr, int perform) {
+    e1(local_root_ptr, perform);
+    if(perform){
     printf("    mov %%r12,%%r13\n");
+    }
     while (isMul()) {
         consume();
-        e1(local_root_ptr);
+        e1(local_root_ptr, perform);
+        if(perform){
         printf("    imul %%r12,%%r13\n");
+        }
     }
 }
 
 /* handle '+' */
-void e3(struct trie_node *local_root_ptr) {
-    e2(local_root_ptr);
+void e3(struct trie_node *local_root_ptr, int perform) {
+    e2(local_root_ptr, perform);
+    if(perform){
     printf("    mov %%r13,%%r14\n");
+    }
     while (isPlus()) {
         consume();
-        e2(local_root_ptr);
+        e2(local_root_ptr, perform);
+        if(perform){
         printf("    add %%r13,%%r14\n");
+        }
     }
 }
 
 /* handle '==' */
-void e4(struct trie_node *local_root_ptr) {
-    e3(local_root_ptr);
+void e4(struct trie_node *local_root_ptr, int perform) {
+    e3(local_root_ptr, perform);
+    if(perform){
     printf("    mov %%r14,%%r15\n");
+    }
     while (1) {
-        if (isEqEq()) {
+        if(!perform){
+          consume();
+          e3(local_root_ptr, perform); 
+        } else if (isEqEq()) {
             consume();
-            e3(local_root_ptr);
+            e3(local_root_ptr, perform);
             printf("    cmp %%r14,%%r15\n");
             printf("    sete %%r15b\n");
             printf("    movzbq %%r15b,%%r15\n");
         } else if (isLt()) {
             consume();
-            e3(local_root_ptr);
+            e3(local_root_ptr, perform);
             printf("    cmp %%r14,%%r15\n");
             printf("    setb %%r15b\n");
             printf("    movzbq %%r15b,%%r15\n");
         } else if (isGt()) {
             consume();
-            e3(local_root_ptr);
+            e3(local_root_ptr, perform);
             printf("    cmp %%r14,%%r15\n");
             printf("    seta %%r15b\n");
             printf("    movzbq %%r15b,%%r15\n");
         } else if (isLtGt()) {
             consume();
-            e3(local_root_ptr);
+            e3(local_root_ptr, perform);
             printf("    cmp %%r14,%%r15\n");
             printf("    setne %%r15b\n");
             printf("    movzbq %%r15b,%%r15\n");
@@ -683,20 +711,24 @@ void e4(struct trie_node *local_root_ptr) {
     }
 }
 
-void expression(struct trie_node *local_root_ptr) {
+void expression(struct trie_node *local_root_ptr, int perform) {
+    if(perform){
     printf("    push %%r12\n");
     printf("    push %%r13\n");
     printf("    push %%r14\n");
     printf("    push %%r15\n");
-    e4(local_root_ptr);
+    }
+    e4(local_root_ptr, perform);
+    if(perform){
     printf("    mov %%r15,%%rax\n");
     printf("    pop %%r15\n");
     printf("    pop %%r14\n");
     printf("    pop %%r13\n");
     printf("    pop %%r12\n");
+    }
 }
 
-int statement(struct trie_node *local_root_ptr) {
+int statement(struct trie_node *local_root_ptr, int perform) {
     if (isId()) {
         char *id = getId();
         consume();
@@ -707,11 +739,14 @@ int statement(struct trie_node *local_root_ptr) {
         }
 	int displacement = -1;
 	while(isDot()){
+           if(perform){
 	    if(!isVarStruct(id)){
 	        error("Nonstruct variable being followed by .");
             }
+            }
 	    char* structName = tokens[token_index].value.id;
 	    consume();
+            if(perform){
 	    if(!isId()){
 	        error("expected identifier after dot operator");
 	    }
@@ -720,6 +755,7 @@ int statement(struct trie_node *local_root_ptr) {
 	    printf("    movq %d(%%rax), %%rax\n", displacement); 
             }
             displacement = getVarIndexInStruct(id, structName) * 8;
+            }
 	    consume();
 	}
 	if(overrideSet){
@@ -730,7 +766,7 @@ int statement(struct trie_node *local_root_ptr) {
             error("expected =");
         }
         consume();
-        expression(local_root_ptr);
+        expression(local_root_ptr, perform);
 	if(overrideSet){
              setAddress();
         } else {
@@ -748,11 +784,13 @@ int statement(struct trie_node *local_root_ptr) {
         if(!isId()){
             error("expected identifier after type name");
         }
-        if(isStruct){
-            printf("    call %s_struct\n", typeName);
-        }
-        char *id = getId();
-        set(id, local_root_ptr);
+	if(isStruct){
+           if(perform){
+	    printf("    call %s_struct\n", typeName);
+           }
+	}
+	char *id = getId();
+	set(id, local_root_ptr);
         consume();
         if (isSemi()){
             consume();
@@ -760,7 +798,7 @@ int statement(struct trie_node *local_root_ptr) {
         return 1;
     }else if (isLeftBlock()) {
         consume();
-        seq(local_root_ptr);
+        seq(local_root_ptr, perform);
         if (!isRightBlock())
             error("unclosed statement block");
         consume();
@@ -768,47 +806,63 @@ int statement(struct trie_node *local_root_ptr) {
     } else if (isIf()) {
         unsigned int if_num = if_count++;
         consume();
-        expression(local_root_ptr);
+        expression(local_root_ptr, perform);
+        if(perform){
         printf("    test %%rax,%%rax\n");
         printf("    jz if_end_%u\n", if_num);
-        statement(local_root_ptr);
+        }
+        statement(local_root_ptr, perform);
+        if(perform){
         printf("    jmp else_end_%u\n", if_num);
         printf("if_end_%u:\n", if_num);
+        }
         if (isElse()) {
             consume();
-            statement(local_root_ptr);
+            statement(local_root_ptr, perform);
         }
+        if(perform){
         printf("else_end_%u:\n", if_num);
+        }
         return 1;
     } else if (isWhile()) {
         unsigned int while_num = while_count++;
         consume();
+        if(perform){
         printf("while_begin_%u:\n", while_num);
-        expression(local_root_ptr);
+        }
+        expression(local_root_ptr, perform);
+        if(perform){
         printf("    test %%rax,%%rax\n");
         printf("    jz while_end_%u\n", while_num);
-        statement(local_root_ptr);
+        }
+        statement(local_root_ptr, perform);
+        if(perform){
         printf("    jmp while_begin_%u\n", while_num);
         printf("while_end_%u:\n", while_num);
+        }
         return 1;
     } else if (isSemi()) {
         consume();
         return 1;
     } else if (isReturn()) {
         consume();
-        expression(local_root_ptr);
+        expression(local_root_ptr, perform);
+        if(perform){
         printf("    pop %%rbp\n");
         printf("    ret\n");
+        }
         if (isSemi()) {
             consume();
         }
         return 1;
     } else if (isPrint()) {
         consume();
-        expression(local_root_ptr);
+        expression(local_root_ptr, perform);
+        if(perform){
         printf("    mov $output_format,%%rdi\n");
         printf("    mov %%rax,%%rsi\n");
         printf("    call printf\n");
+        }
         if (isSemi()) {
             consume();
         }
@@ -834,7 +888,7 @@ int statement(struct trie_node *local_root_ptr) {
         return 1;
     } else if (isDelay()) {
         consume();
-        expression(local_root_ptr); 
+        expression(local_root_ptr, perform); 
         printf("    push %%rdi\n");
         printf("    push %%rsi\n");
         printf("    push %%rdx\n");
@@ -855,8 +909,8 @@ int statement(struct trie_node *local_root_ptr) {
     }
 }
 
-void seq(struct trie_node *local_root_ptr) {
-    while (statement(local_root_ptr)) { fflush(stdout); }
+void seq(struct trie_node *local_root_ptr, int perform) {
+    while (statement(local_root_ptr, perform)) { fflush(stdout); }
 }
 
 void function(void) {
@@ -891,7 +945,7 @@ void function(void) {
         }
     }
     consume();
-    statement(local_root_ptr);
+    statement(local_root_ptr, 1);
     freeTrie(local_root_ptr);
     printf("    pop %%rbp\n");
     printf("    ret\n");
