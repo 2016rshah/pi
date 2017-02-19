@@ -281,15 +281,15 @@ struct token getToken(void) {
             next_token.type = PRINT_KWD;
 	} else if (strcmp(id_buffer, "struct") == 0) {
 	    next_token.type = STRUCT_KWD;
-	} else if (strcmp(id_buffer, "final") == 0) {
-	    next_token.type = FINAL_KWD;
 	} else if (strcmp(id_buffer, "long") == 0) {
 	    next_token.type = LONG_KWD;
+	} else if (strcmp(id_buffer, "char") == 0) {
+	    next_token.type = CHAR_KWD;
 	} else if (strcmp(id_buffer, "boolean") == 0) {
 	    next_token.type = BOOLEAN_KWD;
-	}else if (strcmp(id_buffer, "char") == 0) {
-	    next_token.type = CHAR_KWD;
- 	}else if (isTypeName(id_buffer)) {
+	} else if (strcmp(id_buffer, "final") == 0) {
+	    next_token.type = FINAL_KWD;
+ 	} else if (isTypeName(id_buffer)) {
 	    next_token.type = TYPE_KWD;
             next_token.value.id = strdup(id_buffer);
 	} else {
@@ -342,6 +342,18 @@ int isPrint() {
 
 int isFinal() { 
     return tokens[token_index].type == FINAL_KWD;
+}
+
+int isLong() {
+    return tokens[token_index].type == LONG_KWD;
+}
+
+int isChar() {
+    return tokens[token_index].type == CHAR_KWD;
+}
+
+int isBoolean() {
+    return tokens[token_index].type == BOOLEAN_KWD;
 }
 
 int isSemi() {
@@ -439,11 +451,11 @@ int getVarType(char *id, struct trie_node *node_ptr) {
             child_num = *ch_ptr - 'a' + 10;
         }
         if (node_ptr->children[child_num] == 0) {
-            return 0;
+            return node_ptr->varType;
         }
         node_ptr = node_ptr->children[child_num];
     }
-    return node_ptr->varType;
+    return -1;
 }
 
 int getVarNum(char *id, struct trie_node *node_ptr) {
@@ -762,13 +774,41 @@ int statement(struct trie_node *local_root_ptr) {
         consume();
         expression(local_root_ptr);
         int variableType = getVarType(id, local_root_ptr);
+	fprintf(stderr, "variableType: %i\n", variableType);
+	if (variableType == -1) {
+	    error("expected type before identfier name");
+	}
         set(id, local_root_ptr, variableType);
         if (isSemi()) {
             consume();
         }
         return 1;
+    } else if(isBoolean() || isLong() || isChar()) {
+	int whichVarType;
+	if(isBoolean()) {
+	    whichVarType = 0;
+	} else if(isChar()) {
+	    whichVarType = 1;
+	} else {
+	    whichVarType = 2;
+	}
+	consume();
+	if(!isId()){
+	    error("expected identifier after type name");
+	}
+	char *id = getId();
+	consume();
+	if (!isEq()) {
+	    error("expected =");
+	}
+        consume();
+	expression(local_root_ptr);
+	set(id, local_root_ptr, whichVarType);
+	if (isSemi()) {
+	    consume();
+	}
+	return 1;
     } else if (isType()) {
-	fprintf(stderr, "IS THSI RUNNING\n");
 	int isStruct = isStructType();
         int whichVarType = findVarType();
         char* typeName = tokens[token_index].value.id;
@@ -786,7 +826,7 @@ int statement(struct trie_node *local_root_ptr) {
             consume();
         }
         return 1;
-    }else if (isLeftBlock()) {
+    } else if (isLeftBlock()) {
         consume();
         seq(local_root_ptr);
         if (!isRightBlock())
