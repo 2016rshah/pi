@@ -41,7 +41,7 @@ enum token_type {
     CASE,
 };
 
-char* tokenStrings[25] = {"IF", "ELSE", "WHILE", "FUN", "RETURN", "PRINT", "STRUCT", "TYPE", "=", "==", "<", ">", "<>", ";", ",", ".", "(", ")", "{", "}", "+", "*", "ID", "INTEGER", "END"};
+char* tokenStrings[33] = {"IF", "ELSE", "WHILE", "FUN", "RETURN", "PRINT", "STRUCT", "TYPE", "BELL", "DELAY", "WINDOW_START", "WINDOW_END", "=", "DEFINE", "==", "<", ">", "<>", ";", ",", ".", "(", ")", "{", "}", "+", "*", "ID", "INTEGER", "USER_OP", "END", "SWITCH", "CASE"};
 
 union token_value {
     char *id;
@@ -122,6 +122,7 @@ static void printUnbalancedError(enum token_type left, enum token_type right){
 	}
 	i_token = (*i_token).prev;
     }
+    i_token = (*i_token).next;
     while(i_token != current_token){
 	if((*i_token).type == ID){
 	    fprintf(stderr, "%s ", (*i_token).value.id);
@@ -154,6 +155,7 @@ void error(enum error_code errorCode, char* message){
 	fprintf(stderr, "Yikes");
 	break;
     }
+    current_token = (*current_token).next;
 }
 
 
