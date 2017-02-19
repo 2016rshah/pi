@@ -894,6 +894,8 @@ int statement(struct trie_node *local_root_ptr, int perform) {
             printf("    movq $0, %%rsi\n");
             printf("    call glutInit\n");
             printf("    movq $0, %%rdi\n");
+            printf("    call glutInitDisplayMode\n");
+            printf("    movq $0, %%rdi\n");
             printf("    movq $0, %%rsi\n");
             printf("    call glutInitWindowPosition\n");
             printf("    movq $%lu, %%rdi\n", x_size);
@@ -901,13 +903,26 @@ int statement(struct trie_node *local_root_ptr, int perform) {
             printf("    movq %%rdi, window_x_size\n");
             printf("    movq %%rsi, window_y_size\n");
             printf("    call glutInitWindowSize\n");
+            printf("    movq $windowtitle, %%rdi\n");
+            printf("    call glutCreateWindow\n");
+            printf("    movq $windowloop_%u, %%rdi\n", window_count);
+            printf("    call glutDisplayFunc\n");
+            printf("    call glutMainLoop\n");
+            printf("    jmp windowdone_%u\n", window_count);
+            printf("    windowloop_%u:\n", window_count);
             while(current_token->type != WINDOW_END){
                 statement(local_root_ptr, perform);
             }
+            printf("    ret\n");
+            printf("    windowdone_%u:\n", window_count);
             printf("    //WINDOW END CODE BLOCK\n");
+            window_count = window_count + 1;
+        } else {
+            while(current_token->type != WINDOW_END){
+                statement(local_root_ptr, perform);
+            }
         }
         consume();
-        window_count = window_count + 1;
         return 1;   
     } else if (isIf()) {
         unsigned int if_num = if_count++;
@@ -1189,6 +1204,10 @@ void compile(void) {
     printf("    mov $0,%%rax\n");
     printf("    add $8,%%rsp\n");
     printf("    ret\n");
+    printf("//STANDARD FUNCTIONS BLOCK\n");
+    printf("drawrect_fun:\n");
+    printf("    ret\n");
+    printf("//END STANDARD FUNCTIONS BLOCK\n");
 
     //Standard types are defined before token parsing since this knowledge is needed to know if a token is a type token
     definedTypes = calloc(10, sizeof(long));
@@ -1219,6 +1238,8 @@ void compile(void) {
     printf("    .string \"\7\"\n");
     printf("ineedazero:\n"); //I need a pointer to zero for Open GL
     printf("    .quad 0\n");
+    printf("windowtitle:\n");
+    printf("    .string \"Potato, the Epic Window\"\n");
     initVars(global_root_ptr);
 
     free(id_buffer);
