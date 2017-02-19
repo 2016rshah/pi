@@ -52,6 +52,8 @@ union token_value {
 struct token {
     enum token_type type;
     union token_value value;
+    struct token *next;
+    struct token *prev;
 };
 
 struct trie_node {
@@ -82,11 +84,8 @@ static char *id_buffer;
 static unsigned int id_length;
 static unsigned int id_buffer_size;
 
-static struct token *tokens;
-static unsigned int token_count;
-static unsigned int token_buffer_size;
-
-static unsigned int token_index;
+static struct token *first_token;
+static struct token *current_token;
 
 static struct trie_node *global_root_ptr;
 
@@ -137,7 +136,7 @@ void addStandardTypes(){
 //Assumes that the object is already a type
 int isStructType(){
     for(int index = 0; index < standardTypeCount; index++){
-        if(strcmp(tokens[token_index].value.id, definedTypes[index]) == 0){
+        if(strcmp(current_token->value.id, definedTypes[index]) == 0){
             return 0;
         }
     }
@@ -181,14 +180,35 @@ int isUserOp(char ch) {
     return 0;
 }
 
-/* append a token to the token array */
-void appendToken(struct token token) {
-    if (token_count == token_buffer_size) {
-        token_buffer_size *= 2;
-        tokens = realloc(tokens, token_buffer_size);
+/* inserts token2 after token1 */
+void insertToken(struct token *token1, struct token *token2) {
+    if (token1->next != 0) {
+        token1->next->prev = token2;
+        token2->next = token1->next;
     }
-    tokens[token_count] = token;
-    token_count++;
+    token2->prev = token1;
+    token1->next = token2;
+}
+
+/* returns a pointer to the token at a given offset to the current token */
+struct token *tokenAt(int offset) {
+    struct token *tkn = current_token;
+    if (offset > 0) {
+        while (offset-- > 0) {
+            if (tkn == 0) {
+                break;
+            }
+            tkn = tkn->next;
+        }
+    } else {
+        while (offset++ < 0) {
+            if (tkn == 0) {
+                break;
+            }
+            tkn = tkn->prev;
+        }
+    }
+    return tkn;
 }
 
 /*removes whitespace while tokenizing and returns next non-whitespace character*/
@@ -209,66 +229,68 @@ char removeWhitespace(char next_char) {
 }
 
 /* read a token from standard in */
-struct token getToken(void) {
-    struct token next_token;
+struct token *getToken(void) {
+    struct token *next_token = malloc(sizeof(struct token));
+    next_token->next = 0;
+    next_token->prev = 0;
 
     static char next_char = ' ';
 
     next_char = removeWhitespace(next_char);        
 
     if (next_char == -1) {
-        next_token.type = END;
+        next_token->type = END;
     } else if (next_char == '=') {
         next_char = getchar();
         if (next_char == '=') {
             next_char = getchar();
-            next_token.type = EQ_EQ;
+            next_token->type = EQ_EQ;
         } else {
-            next_token.type = EQ;
+            next_token->type = EQ;
         }
     } else if (next_char == '<') {
         next_char = getchar();
         if (next_char == '>') {
             next_char = getchar();
-            next_token.type = LT_GT;
+            next_token->type = LT_GT;
         } else {
-            next_token.type = LT;
+            next_token->type = LT;
         }
     } else if (next_char == '>') {
         next_char = getchar();
-        next_token.type = GT;
+        next_token->type = GT;
     } else if (next_char == ';') {
         next_char = getchar();
-        next_token.type = SEMI;
+        next_token->type = SEMI;
     } else if (next_char == ',') {
         next_char = getchar();
-        next_token.type = COMMA;
+        next_token->type = COMMA;
     } else if (next_char == '.') {
         next_char = getchar();
-        next_token.type = DOT;
+        next_token->type = DOT;
     } else if (next_char == '(') {
         next_char = getchar();
-        next_token.type = LEFT;
+        next_token->type = LEFT;
     } else if (next_char == ')') {
         next_char = getchar();
-        next_token.type = RIGHT;
+        next_token->type = RIGHT;
     } else if (next_char == '{') {
         next_char = getchar();
-        next_token.type = LEFT_BLOCK;
+        next_token->type = LEFT_BLOCK;
     } else if (next_char == '}') {
         next_char = getchar();
-        next_token.type = RIGHT_BLOCK;
+        next_token->type = RIGHT_BLOCK;
     } else if (next_char == '+') {
         next_char = getchar();
-        next_token.type = PLUS;
+        next_token->type = PLUS;
     } else if (next_char == '*') {
         next_char = getchar();
-        next_token.type = MUL;
+        next_token->type = MUL;
     } else if (isdigit(next_char)) {
-        next_token.type = INTEGER;
-        next_token.value.integer = 0;
+        next_token->type = INTEGER;
+        next_token->value.integer = 0;
         while (isdigit(next_char)) {
-            next_token.value.integer = next_token.value.integer * 10 + (next_char - '0');
+            next_token->value.integer = next_token->value.integer * 10 + (next_char - '0');
             next_char = getchar();
             while (next_char == '_') {
                 next_char = getchar();
@@ -283,35 +305,35 @@ struct token getToken(void) {
         appendChar('\0');
 
         if (strcmp(id_buffer, "if") == 0) {
-            next_token.type = IF_KWD;
+            next_token->type = IF_KWD;
         } else if (strcmp(id_buffer, "else") == 0) {
-            next_token.type = ELSE_KWD;
+            next_token->type = ELSE_KWD;
         } else if (strcmp(id_buffer, "while") == 0) {
-            next_token.type = WHILE_KWD;
+            next_token->type = WHILE_KWD;
         } else if (strcmp(id_buffer, "fun") == 0) {
-            next_token.type = FUN_KWD;
+            next_token->type = FUN_KWD;
         } else if (strcmp(id_buffer, "return") == 0) {
-            next_token.type = RETURN_KWD;
+            next_token->type = RETURN_KWD;
         } else if (strcmp(id_buffer, "print") == 0) {
-            next_token.type = PRINT_KWD;
+            next_token->type = PRINT_KWD;
         }   else if (strcmp(id_buffer, "bell") == 0) {
-            next_token.type = BELL_KWD;
+            next_token->type = BELL_KWD;
         } else if (strcmp(id_buffer, "delay") == 0) {
-            next_token.type = DELAY_KWD;
+            next_token->type = DELAY_KWD;
         } else if (strcmp(id_buffer, "struct") == 0) {
-            next_token.type = STRUCT_KWD;
+            next_token->type = STRUCT_KWD;
         } else if (strcmp(id_buffer, "switch") == 0){
-            next_token.type = SWITCH;
+            next_token->type = SWITCH;
         }  else if (strcmp(id_buffer, "case") == 0){
-            next_token.type = CASE;
+            next_token->type = CASE;
         } else if (isTypeName(id_buffer)) {
-            next_token.type = TYPE_KWD;
-            next_token.value.id = strdup(id_buffer);
+            next_token->type = TYPE_KWD;
+            next_token->value.id = strdup(id_buffer);
         } else if (strcmp(id_buffer, "define") == 0) {
-            next_token.type = DEFINE_KWD;
+            next_token->type = DEFINE_KWD;
         } else {
-            next_token.type = ID;
-            next_token.value.id = strcpy(malloc(id_length), id_buffer);
+            next_token->type = ID;
+            next_token->value.id = strcpy(malloc(id_length), id_buffer);
         }
     } else if(isUserOp(next_char)) { //user operator outside define statement
         //TODO: implement this
@@ -322,7 +344,7 @@ struct token getToken(void) {
         //5. add the tokens to the overall list of tokens
     } else {
         error("invalid character");
-        next_token.type = 0;
+        next_token->type = 0;
     }
 
     return next_token;
@@ -330,134 +352,133 @@ struct token getToken(void) {
 
 /* proceed to the next token */
 void consume() {
-    token_index++;
+    if (current_token->type != END) {
+        current_token = current_token->next;
+    }
 }
 
 int isWhile() {
-    return tokens[token_index].type == WHILE_KWD;
+    return current_token->type == WHILE_KWD;
 }
 
 int isIf() {
-    return tokens[token_index].type == IF_KWD;
+    return current_token->type == IF_KWD;
 }
 
 int isElse() {
-    return tokens[token_index].type == ELSE_KWD;
+    return current_token->type == ELSE_KWD;
 }
 
 int isSwitch() {
-    return tokens[token_index].type == SWITCH;
+    return current_token->type == SWITCH;
 }
 int isCase(){
-    return tokens[token_index].type == CASE;
+    return current_token->type == CASE;
 }
 int isFun() {
-    return tokens[token_index].type == FUN_KWD;
+    return current_token->type == FUN_KWD;
 }
 
 int isStruct(){
-    return tokens[token_index].type == STRUCT_KWD;
+    return current_token->type == STRUCT_KWD;
 }
 
 int isType(){
-    return tokens[token_index].type == TYPE_KWD;
+    return current_token->type == TYPE_KWD;
 }
 
 int isReturn() {
-    return tokens[token_index].type == RETURN_KWD;
+    return current_token->type == RETURN_KWD;
 }
 
 int isPrint() {
-    return tokens[token_index].type == PRINT_KWD;
+    return current_token->type == PRINT_KWD;
 }
 
 int isBell() {
-    return tokens[token_index].type == BELL_KWD;
+    return current_token->type == BELL_KWD;
 }
 
 int isDelay() {
-    return tokens[token_index].type == DELAY_KWD;
+    return current_token->type == DELAY_KWD;
 }
 
 int isSemi() {
-    return tokens[token_index].type == SEMI;
+    return current_token->type == SEMI;
 }
 
 int isComma() {
-    return tokens[token_index].type == COMMA;
+    return current_token->type == COMMA;
 }
 
 int isDot() {
-    return tokens[token_index].type == DOT;
+    return current_token->type == DOT;
 }
 
 int isLeftBlock() {
-    return tokens[token_index].type == LEFT_BLOCK;
+    return current_token->type == LEFT_BLOCK;
 }
 
 int isRightBlock() {
-    return tokens[token_index].type == RIGHT_BLOCK;
+    return current_token->type == RIGHT_BLOCK;
 }
 
 int isEq() {
-    return tokens[token_index].type == EQ;
+    return current_token->type == EQ;
 }
 
 int isEqEq() {
-    return tokens[token_index].type == EQ_EQ;
+    return current_token->type == EQ_EQ;
 }
 
 int isLt() {
-    return tokens[token_index].type == LT;
+    return current_token->type == LT;
 }
 
 int isGt() {
-    return tokens[token_index].type == GT;
+    return current_token->type == GT;
 }
 
 int isLtGt() {
-    return tokens[token_index].type == LT_GT;
+    return current_token->type == LT_GT;
 }
 
 int isLeft() {
-    return tokens[token_index].type == LEFT;
+    return current_token->type == LEFT;
 }
 
 int isRight() {
-    return tokens[token_index].type == RIGHT;
+    return current_token->type == RIGHT;
 }
 
 int isEnd() {
-    return tokens[token_index].type == END;
+    return current_token->type == END;
 }
 
 int isId() {
-    return tokens[token_index].type == ID;
+    return current_token->type == ID;
 }
 
 int isMul() {
-    return tokens[token_index].type == MUL;
+    return current_token->type == MUL;
 }
 
 int isPlus() {
-    return tokens[token_index].type == PLUS;
+    return current_token->type == PLUS;
 }
 
 int isInt() {
-    return tokens[token_index].type == INTEGER;
+    return current_token->type == INTEGER;
 }
 
 char *getId() {
-    return tokens[token_index].value.id;
+    return current_token->value.id;
 }
 
 uint64_t getInt() {
-    return tokens[token_index].value.integer;
+    return current_token->value.integer;
 }
 
-uint64_t getLaterInt(int ind) {
-    return tokens[ind].value.integer;
-}
 void freeTrie(struct trie_node *node_ptr) {
     if (node_ptr == 0) {
         return;
@@ -765,7 +786,7 @@ int statement(struct trie_node *local_root_ptr, int perform) {
 	            error("Nonstruct variable being followed by .");
                 }
             }
-	    char* structName = tokens[token_index].value.id;
+	    char* structName = current_token->value.id;
 	    consume();
             if (perform) {
                 if (!isId()) {
@@ -803,7 +824,7 @@ int statement(struct trie_node *local_root_ptr, int perform) {
     } else if (isType()) {
         num_variable_declarations++;
         int isStruct = isStructType();
-        char* typeName = tokens[token_index].value.id;
+        char* typeName = current_token->value.id;
         consume();
         if (!isId()) {
             error("expected identifier after type name");
@@ -984,7 +1005,7 @@ void function(void) {
     }
     consume();
     //store token index
-    int temp_index = token_index;
+    struct token *function_start = current_token;
     //run through statement
     //sub num vars from rsp
     num_variable_declarations = 0;
@@ -995,7 +1016,7 @@ void function(void) {
     }
     printf("    subq $%d,%%rsp\n", 8 * num_variable_declarations);
     //restore token index
-    token_index = temp_index;
+    current_token = function_start;
     
     num_variable_declarations = 0;
     statement(local_root_ptr, 1);
@@ -1036,10 +1057,10 @@ void structDef(void) {
         printf("    call realloc\n");
         printf("    movq %%rax, %%r8\n");
         if(isStructType()) {
-            if(strcmp(structName, tokens[token_index].value.id) == 0){
+            if(strcmp(structName, current_token->value.id) == 0){
                 selfDefined = 1;
             }
-            printf("    call %s_struct\n", tokens[token_index].value.id);
+            printf("    call %s_struct\n", current_token->value.id);
             printf("    movq %%rax, %d(%%r8)\n", count * 8);
 	} else {
             printf("    movq $333, %%rax\n");
@@ -1096,13 +1117,15 @@ void globalVarDef(void) {
 }
 
 void program(void) {
-    while (isFun() || isStruct() || isType()) {
+    while (1) {
         if (isFun()) {
             function();
         } else if (isStruct()) {
             structDef();
         } else if (isType()) {
             globalVarDef();
+        } else {
+            break;
         }
     }
     if (!isEnd())
@@ -1125,43 +1148,31 @@ void compile(void) {
 
     id_buffer = malloc(10);
     id_buffer_size = 10;
-    tokens = malloc(sizeof(struct token) * 100);
-    token_buffer_size = 100;
-    do {
-        appendToken(getToken());
-        //For later token parsing we need to know if something is considered a type
-        if(token_count > 1 && tokens[token_count - 2].type == STRUCT_KWD){
-            addType(tokens[token_count - 1].value.id);
-        }
-            //check if the token was define; if so, read in next few tokens manually and add to list of user operators
-            //TODO: implement this
-            if(tokens[token_count - 1].type == DEFINE_KWD) {
-                //current token to be tokenized is the user operator
-                //char operator = removeWhitespace('_');
-                //next token is the type of the first variable
-                //next token is the type of the second variable
-                //next few tokens are the expression until token is a semicolon
-                //add this sequence of tokens to the user operator struct
-            }
-        } while (tokens[token_count - 1].type != END);
-
-        global_root_ptr = calloc(1, sizeof(struct trie_node));
-        int x = setjmp(escape);
-        if (x == 0) {
-            program();
-        }
-        printf("    .data\n");
-        printf("output_format:\n");
-        printf("    .string \"%%" PRIu64 "\\n\"\n");
-        printf("bell_format:\n");
-        printf("    .string \"\7\"\n");
-        initVars(global_root_ptr);
-
-        free(id_buffer);
-        freeTrie(global_root_ptr);
+    first_token = getToken();
+    current_token = first_token;
+    while (current_token->type != END) {
+        insertToken(current_token, getToken());
+        current_token = current_token->next;
     }
+    current_token = first_token;
 
-    int main(int argc, char *argv[]) {
-        compile();
-        return 0;
+    global_root_ptr = calloc(1, sizeof(struct trie_node));
+    int x = setjmp(escape);
+    if (x == 0) {
+        program();
     }
+    printf("    .data\n");
+    printf("output_format:\n");
+    printf("    .string \"%%" PRIu64 "\\n\"\n");
+    printf("bell_format:\n");
+    printf("    .string \"\7\"\n");
+    initVars(global_root_ptr);
+
+    free(id_buffer);
+    freeTrie(global_root_ptr);
+}
+
+int main(int argc, char *argv[]) {
+    compile();
+    return 0;
+}
