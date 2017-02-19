@@ -147,6 +147,7 @@ void error(enum error_code errorCode, char* message){
     case PAREN_MISMATCH:
 	fprintf(stderr, "Expected right paren in expression:\n");
 	printUnbalancedError(LEFT, RIGHT);
+	current_token = (*current_token).prev;
 	break;
     case BRACKET_MISMATCH:
 	fprintf(stderr, "Expected right bracket:\n");
