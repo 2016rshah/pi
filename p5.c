@@ -104,7 +104,7 @@ static int standardTypeCount = 0;
 
 /*static int perform = 1;*/
 
-static char *op_not_allowed = "_+*{}()|&~=<>,;\n\t\r"; //stores characters that can't be user operators
+static char *op_not_allowed = "_+*-/%{}()|&~=<>,;\n\t\r"; //stores characters that can't be user operators
 static struct user_operator* user_ops; //stores array of user operators
 static int ops_tail = 0; //stores the index of the last element in the array
 
