@@ -155,7 +155,7 @@ void error(enum error_code errorCode, char* message){
 	fprintf(stderr, "Yikes");
 	break;
     }
-    current_token = (*current_token).next;
+    //current_token = (*current_token).next;
 }
 
 
