@@ -115,7 +115,8 @@ static struct user_operator* user_ops; //stores linked list of user operators
 enum error_code {
     GENERAL,
     PAREN_MISMATCH,
-    BRACKET_MISMATCH
+    BRACKET_MISMATCH,
+    UNKOWN_VAR
 };
 
 static void printUnbalancedError(enum token_type left, enum token_type right){
@@ -161,6 +162,10 @@ void error(enum error_code errorCode, char* message){
     case BRACKET_MISMATCH:
 	fprintf(stderr, "Expected right bracket:\n");
 	printUnbalancedError(LEFT_BLOCK, RIGHT_BLOCK);
+	break;
+    case UNKOWN_VAR:
+	fprintf(stderr, "YIKES");
+	break;
     default:
 	fprintf(stderr, "Yikes\n");
 	break;
@@ -605,7 +610,7 @@ void get(char *id, struct trie_node *local_root_ptr) {
             if (getVarNum(id, global_root_ptr)) {
                 printf("    mov %s_var,%%rax\n", id);
             } else {
-                error(GENERAL, "variable not found");
+                error(UNKOWN_VAR, "variable not found");
             }
             break;
         default:
