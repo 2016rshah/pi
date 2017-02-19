@@ -111,27 +111,28 @@ enum error_code {
 };
 
 static void printUnbalancedError(enum token_type left, enum token_type right){
-    unsigned int i = token_index;
+    struct token* i_token = current_token;
     unsigned int balance = 1;
-    while(i > 0 && balance != 0){
-	if(tokens[i].type == left){
+    while((*i_token).prev != NULL && balance != 0){
+	if((*i_token).type == left){
 	    balance--;
 	}
-	else if(tokens[i].type == right){
+	else if((*i_token).type == right){
 	    balance++;
 	}
-	i--;
+	i_token = (*i_token).prev;
     }
-    while(++i < token_index){
-	if(tokens[i].type == ID){
-	    fprintf(stderr, "%s ", tokens[i].value.id);
+    while(i_token != current_token){
+	if((*i_token).type == ID){
+	    fprintf(stderr, "%s ", (*i_token).value.id);
 	}
-	else if(tokens[i].type == INTEGER){
-	    fprintf(stderr, "%lu ", tokens[i].value.integer);
+	else if((*i_token).type == INTEGER){
+	    fprintf(stderr, "%lu ", (*i_token).value.integer);
 	}
 	else{
-	    fprintf(stderr, "%s ", tokenStrings[tokens[i].type]);
+	    fprintf(stderr, "%s ", tokenStrings[(*i_token).type]);
 	}
+	i_token = (*i_token).next;
     }
     fprintf(stderr, "\n");
 }
