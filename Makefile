@@ -10,14 +10,13 @@ OFILES=$(patsubst %.c,%.o,$(CFILES))
 .SECONDARY:
 
 .PROCIOUS : %.o %.S %.out
-
 CFLAGS=-g -std=gnu99 -O0 -Werror -Wall
 
 p5 : $(OFILES) Makefile
-	gcc $(CFLAGS) -o p5 $(OFILES) -lGL -lGLU -lglut
+	gcc $(CFLAGS) -o p5 $(OFILES) -lGL -lGLU libglut.so.3
 
 $(OFILES) : %.o : %.c Makefile
-	gcc $(CFLAGS) -MD -c $*.c
+	gcc $(CFLAGS) -MD -c $*.c -I .
 
 %.o : %.S Makefile
 	gcc -MD -c $*.S
@@ -29,7 +28,7 @@ $(OFILES) : %.o : %.c Makefile
 progs : $(PROGS)
 
 $(PROGS) : % : %.o
-	gcc -o $@ $*.o graphicfuncs.o -lGL -lGLU -lglut
+	gcc -o $@ $*.o graphicfuncs.o -lGL -lGLU libglut.so.3
 
 outs : $(OUTS)
 
