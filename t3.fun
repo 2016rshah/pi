@@ -1,8 +1,8 @@
 
 fun factorial(n) {
     print n
-    i = 0
-    v = 1
+    long i = 0
+    long v = 1
 
     while (i < n) {
         i = i + 1
