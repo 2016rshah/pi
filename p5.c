@@ -582,7 +582,7 @@ void initVars(struct trie_node *node_ptr) {
     }
 }
 
-void setUpUserOp() {
+void define() {
     //make new user operator
     struct user_operator* operator = malloc(sizeof(struct user_operator));
     operator->next = NULL;
@@ -1186,7 +1186,6 @@ void compile(void) {
         }
         
         //check if the token was define; if so, read in next few tokens manually and add to list of user operators
-        //TODO: implement this
         if (tokens[token_count - 1].type == DEFINE_KWD ) {
             define();
         }
