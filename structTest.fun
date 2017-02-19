@@ -9,10 +9,10 @@ struct line{
 fun main(){
 	point structpoint;
 	line structline;
-	long q;
+	long q = 0;
 	structpoint.x = 100;
 	print structpoint.x;
-        structline.a = structpoint;
-        print structline.a.x;
+    structline.a = structpoint;
+    print structline.a.x;
 	print 1
 }

@@ -21,6 +21,8 @@ enum token_type {
     TYPE_KWD,
     BELL_KWD,
     DELAY_KWD,
+    WINDOW_START,
+    WINDOW_END,
     EQ, 
     DEFINE_KWD,
     EQ_EQ,
@@ -92,6 +94,7 @@ static struct trie_node *global_root_ptr;
 
 static unsigned int if_count = 0;
 static unsigned int while_count = 0;
+static unsigned int window_count = 0;
 //static unsigned int switch_count = 0;
 static int local_var_num = -1;
 static int num_variable_declarations = 0;
@@ -294,8 +297,12 @@ struct token getToken(void) {
             next_token.type = RETURN_KWD;
         } else if (strcmp(id_buffer, "print") == 0) {
             next_token.type = PRINT_KWD;
-        }   else if (strcmp(id_buffer, "bell") == 0) {
+        } else if (strcmp(id_buffer, "bell") == 0) {
             next_token.type = BELL_KWD;
+        } else if (strcmp(id_buffer, "startwindow") == 0) {
+            next_token.type = WINDOW_START;  
+        } else if (strcmp(id_buffer, "endwindow") == 0) {
+            next_token.type = WINDOW_END;  
         } else if (strcmp(id_buffer, "delay") == 0) {
             next_token.type = DELAY_KWD;
         } else if (strcmp(id_buffer, "struct") == 0) {
@@ -377,6 +384,14 @@ int isBell() {
 
 int isDelay() {
     return tokens[token_index].type == DELAY_KWD;
+}
+
+int isWindowStart() {
+    return tokens[token_index].type == WINDOW_START;
+}
+
+int isWindowEnd() {
+    return tokens[token_index].type == WINDOW_END;
 }
 
 int isSemi() {
@@ -751,37 +766,37 @@ int statement(struct trie_node *local_root_ptr, int perform) {
     if (isId()) {
         char *id = getId();
         consume();
-	int overrideSet = 0;
+	    int overrideSet = 0;
         if (perform) {
             if (isDot()) {
                 get(id, local_root_ptr);
                 overrideSet = 1;
             }
         }
-	int displacement = -1;
-	while (isDot()) {
+	    int displacement = -1;
+	    while (isDot()) {
             if (perform) {
-	        if (!isVarStruct(id)) {
-	            error("Nonstruct variable being followed by .");
+	            if (!isVarStruct(id)) {
+	                error("Nonstruct variable being followed by .");
                 }
             }
-	    char* structName = tokens[token_index].value.id;
-	    consume();
+	        char* structName = tokens[token_index].value.id;
+	        consume();
             if (perform) {
                 if (!isId()) {
-	            error("expected identifier after dot operator");
-	        }
+	                error("expected identifier after dot operator");
+	            }
                 id = getId();
                 if (displacement != -1) {
-	            printf("    movq %d(%%rax), %%rax\n", displacement); 
+	                printf("    movq %d(%%rax), %%rax\n", displacement); 
                 }
                 displacement = getVarIndexInStruct(id, structName) * 8;
             }
-	    consume();
-	}
-	if (overrideSet) {
+	        consume();
+	    }
+	    if (overrideSet) {
             printf("    movq %%rax, %%r8\n");
-	    printf("    addq $%d, %%r8\n", displacement);
+	        printf("    addq $%d, %%r8\n", displacement);
         }
         if (!isEq()) {
             error("expected =");
@@ -789,12 +804,11 @@ int statement(struct trie_node *local_root_ptr, int perform) {
         consume();
         expression(local_root_ptr, perform);
         if (perform) {
-	    if (overrideSet) {
-                 setAddress();
+	        if (overrideSet) {
+                setAddress();
             } else {
-                 set(id, local_root_ptr);
+                set(id, local_root_ptr);
             }
-            set(id, local_root_ptr);
         }
         if (isSemi()) {
             consume();
@@ -808,12 +822,12 @@ int statement(struct trie_node *local_root_ptr, int perform) {
         if (!isId()) {
             error("expected identifier after type name");
         }
-	char *id = getId();
+	    char *id = getId();
         if (perform) {
             if (isStruct) {
                 printf("    call %s_struct\n", typeName);
             } 
-	}
+	    }
         consume();
         if (isEq()) {
             consume();
@@ -830,6 +844,7 @@ int statement(struct trie_node *local_root_ptr, int perform) {
             }
             if (perform) {
                 setVarNum(id, local_root_ptr, local_var_num--);
+                set(id, local_root_ptr);
             }
         }
         return 1;
@@ -840,6 +855,39 @@ int statement(struct trie_node *local_root_ptr, int perform) {
             error("unclosed statement block");
         consume();
         return 1;
+    } else if (isWindowStart()) {
+        consume();
+        if(!isInt()){
+            error("expected window x size after declaring window start block");
+        }
+        uint64_t x_size = getInt();
+        consume();
+        if(!isInt()){
+            error("expected window y size after declaring window start block");
+        }
+        uint64_t y_size = getInt();
+        consume();
+        if(perform){
+            printf("    //WINDOW CODE BLOCK\n");
+            printf("    movq $ineedazero, %%rdi\n");
+            printf("    movq $0, %%rsi\n");
+            printf("    call glutInit\n");
+            printf("    movq $0, %%rdi\n");
+            printf("    movq $0, %%rsi\n");
+            printf("    call glutInitWindowPosition\n");
+            printf("    movq $%lu, %%rdi\n", x_size);
+            printf("    movq $%lu, %%rsi\n", y_size);
+            printf("    movq %%rdi, window_x_size\n");
+            printf("    movq %%rsi, window_y_size\n");
+            printf("    call glutInitWindowSize\n");
+            while(tokens[token_index].type != WINDOW_END){
+                statement(local_root_ptr, perform);
+            }
+            printf("    //WINDOW END CODE BLOCK\n");
+        }
+        consume();
+        window_count = window_count + 1;
+        return 1;   
     } else if (isIf()) {
         unsigned int if_num = if_count++;
         consume();
@@ -1155,6 +1203,8 @@ void compile(void) {
         printf("    .string \"%%" PRIu64 "\\n\"\n");
         printf("bell_format:\n");
         printf("    .string \"\7\"\n");
+        printf("ineedazero:\n"); //Open GL initialization required a pointer to 0 so I need this somewhere :|
+        printf("    .quad 0\n");
         initVars(global_root_ptr);
 
         free(id_buffer);
