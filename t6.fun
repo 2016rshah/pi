@@ -1,4 +1,4 @@
-
+long z = 0;
 fun b(x,y) {
     print x + y
 }

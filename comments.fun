@@ -1,6 +1,6 @@
 #test
 fun main() { #fungus
-    a = 1;
+    long a = 1;
     #a = 2
     print a
 #}
