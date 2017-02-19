@@ -5,11 +5,6 @@
 #include <ctype.h>
 #include <inttypes.h>
 
-#define MISSING() do { \
-    fprintf(stderr,"missing code at %s:%d\n",__FILE__,__LINE__); \
-    error(0, "missing");						 \
-} while (0)
-
 enum token_type {
     IF_KWD,
     ELSE_KWD,
@@ -37,6 +32,8 @@ enum token_type {
     INTEGER,
     END,
 };
+
+char* tokenStrings[25] = {"IF", "ELSE", "WHILE", "FUN", "RETURN", "PRINT", "STRUCT", "TYPE", "=", "==", "<", ">", "<>", ";", ",", ".", "(", ")", "{", "}", "+", "*", "ID", "INTEGER", "END"};
 
 union token_value {
     char *id;
@@ -81,17 +78,92 @@ static int definedTypeCount = 0;
 static int definedTypeResize = 10;
 static int standardTypeCount = 0;
 
-static void error(int errorCode, char *message) {
-    switch (errorCode) {
-    case 0: //generic error message
-	fprintf(stderr, "error: %s\n", message);
-	longjmp(escape, 1);
+enum error_code {
+    GENERAL,
+    PAREN_MISMATCH,
+    BRACKET_MISMATCH
+};
+
+static void printUnbalancedError(enum token_type left, enum token_type right){
+    unsigned int i = token_index;
+    unsigned int balance = 1;
+    while(i > 0 && balance != 0){
+	if(tokens[i].type == left){
+	    balance--;
+	}
+	else if(tokens[i].type == right){
+	    balance++;
+	}
+	i--;
+    }
+    while(++i < token_index){
+	if(tokens[i].type == ID){
+	    fprintf(stderr, "%s ", tokens[i].value.id);
+	}
+	else if(tokens[i].type == INTEGER){
+	    fprintf(stderr, "%lu ", tokens[i].value.integer);
+	}
+	else{
+	    fprintf(stderr, "%s ", tokenStrings[tokens[i].type]);
+	}
+    }
+    fprintf(stderr, "\n");
+}
+
+void error(enum error_code errorCode, char* message){
+    /* fprintf(stderr, "error: %s\n", message); */
+    switch (errorCode){
+    case GENERAL :
+	fprintf(stderr, "General error: %s\n", message);
 	break;
-    case 1: // missing right paren
-	fprintf(stderr, "MISSING PAREN: %s\n", message);
+    case PAREN_MISMATCH:
+	fprintf(stderr, "Expected right paren in expression:\n");
+	printUnbalancedError(LEFT, RIGHT);
+	break;
+    case BRACKET_MISMATCH:
+	fprintf(stderr, "Expected right bracket:\n");
+	printUnbalancedError(LEFT_BLOCK, RIGHT_BLOCK);
+    default:
+	fprintf(stderr, "Yikes");
 	break;
     }
+    /* switch(errorCode) { */
+    /* case GENERAL : */
+    /* 	fprintf(stderr, "error: %s\n", message); */
+    /* 	break; */
+    /* case PAREN_MISMATCH : */
+	
+    /* 	//fprintf(stderr, "error: %d\n", curr); */
+    /* 	break; */
+    /* default : */
+    /* 	printf("Meta-error: invalid error code\n" ); */
+    /* } */
+    /* switch (errorCode) { */
+    /* case 0: //generic error message */
+    /* 	fprintf(stderr, "error: %s\n", message); */
+    /* 	longjmp(escape, 1); */
+    /* 	break; */
+    /* case 1: // missing right paren */
+    /* 	int curr = token_index; */
+    /* 	int balance = 1; */
+    /* 	while(curr >= 0 && balance != 0){ */
+    /* 	   if(tokens[curr].type == LEFT){ */
+    /* 			balance--; */
+    /* 	   } else if(tokens[curr].type == RIGHT){ */
+    /* 			balance++; */
+    /* 	  } */
+    /* 	} //at the end of this loop, curr will point to the beginning of the unbalanced expression */
+    /* 	printf("Unbalanced expression:\n"); */
+    /* 	while(curr < token_index){ */
+    /* 	    printf(tokenStrings[tokens[curr]])); */
+    /* } */
+    
+    /* printf("\n"); */
+    /* fprintf(stderr, "MISSING PAREN: %s\n", message); */
+    /* break; */
+    /* } */
 }
+
 
 /* append a character to the id buffer */
 void appendChar(char ch) {
@@ -110,7 +182,7 @@ void addType(char* typeName){
         definedTypes = realloc(definedTypes, sizeof(long) * definedTypeResize);
     }
     definedTypes[definedTypeCount - 1] = strdup(typeName);
-    fprintf(stderr, "%s added as a type\n", typeName);
+    //fprintf(stderr, "%s added as a type\n", typeName);
 }
 
 void addStandardTypes(){
@@ -272,7 +344,7 @@ struct token getToken(void) {
             next_token.value.id = strcpy(malloc(id_length), id_buffer);
         }
     } else {
-	error(0, "invalid character");
+	error(GENERAL, "invalid character");
     }
 
     return next_token;
@@ -532,7 +604,7 @@ void e1(struct trie_node *local_root_ptr) {
         expression(local_root_ptr);
         printf("    mov %%rax,%%r12\n");
         if (!isRight()) {
-            error(1, "unclosed parenthesis expression");
+            error(PAREN_MISMATCH, "unclosed parenthesis expression");
         }
         consume();
     } else if (isInt()) {
@@ -611,7 +683,7 @@ void e1(struct trie_node *local_root_ptr) {
             while(isDot()){
                 consume();
                 if(!isId()){
-                    error(0, "Invalid use of . syntax, not followed by identifer");
+                    error(GENERAL, "Invalid use of . syntax, not followed by identifer");
                 }
                 printf("    movq %d(%%rax), %%rax\n", getVarIndexInStruct(getId(), ""));
                 consume();
@@ -701,17 +773,17 @@ int statement(struct trie_node *local_root_ptr) {
         consume();
 	while(isDot()){
 	    if(!isVarStruct(id)){
-	        error(0, "Nonstruct variable being followed by .");
+	        error(GENERAL, "Nonstruct variable being followed by .");
             }
 	    consume();
 	    if(!isId()){
-	        error(0, "expected identifier after dot operator");
+	        error(GENERAL, "expected identifier after dot operator");
 	    }
             id = getId();
 	    consume();
 	}
         if (!isEq()) {
-            error(0, "expected =");
+            error(GENERAL, "expected =");
         }
         consume();
         expression(local_root_ptr);
@@ -725,7 +797,7 @@ int statement(struct trie_node *local_root_ptr) {
         char* typeName = tokens[token_index].value.id;
 	consume();
         if(!isId()){
-            error(0, "expected identifier after type name");
+            error(GENERAL, "expected identifier after type name");
         }
 	if(isStruct){
 	    printf("    call %s_struct\n", typeName);
@@ -741,7 +813,7 @@ int statement(struct trie_node *local_root_ptr) {
         consume();
         seq(local_root_ptr);
         if (!isRightBlock())
-            error(0, "unclosed statement block");
+            error(BRACKET_MISMATCH, "unclosed statement block");
         consume();
         return 1;
     } else if (isIf()) {
@@ -815,11 +887,11 @@ void seq(struct trie_node *local_root_ptr) {
 
 void function(void) {
     if (!isFun()) {
-        error(0, "expected fun");
+        error(GENERAL, "expected fun");
     }
     consume();
     if (!isId()) {
-        error(0, "invalid function name");
+        error(GENERAL, "invalid function name");
     }
     char *id = getId();
     consume();
@@ -827,14 +899,14 @@ void function(void) {
     printf("    push %%rbp\n");
     printf("    mov %%rsp,%%rbp\n");
     if (!isLeft()) {
-        error(0, "expected function parameter declaration");
+        error(GENERAL, "expected function parameter declaration");
     }
     consume();
     struct trie_node *local_root_ptr = calloc(1, sizeof(struct trie_node));
     int var_num = 1;
     while (!isRight()) {
         if (!isId()) {
-            error(0, "invalid parameter name");
+            error(GENERAL, "invalid parameter name");
         }
         char *param_id = getId();
         consume();
@@ -853,11 +925,11 @@ void function(void) {
 
 void structDef(void){
     if(!isStruct()){
-        error(0, "not a struct");
+        error(GENERAL, "not a struct");
     }
     consume();
     if(!isId()){
-        error(0, "not a valid struct name");
+        error(GENERAL, "not a valid struct name");
     }
     char* structName = getId();
     printf("%s_struct:\n", structName);
@@ -885,7 +957,7 @@ void structDef(void){
         }
 	consume();
 	if(!isId()){
-            error(0, "expected identifier after type in struct definition");
+            error(GENERAL, "expected identifier after type in struct definition");
 	}
         consume();
 	if(isSemi()){
@@ -897,7 +969,7 @@ void structDef(void){
     printf("    pop %%r8\n");
     printf("    ret\n");
     if(!isRightBlock()){
-        error(0, "unexpected token found before struct closed");
+        error(GENERAL, "unexpected token found before struct closed");
     }
     consume();
 }
@@ -911,7 +983,7 @@ void program(void) {
 	}
     }
     if (!isEnd())
-        error(0, "expected end of file");
+        error(GENERAL, "expected end of file");
 }
 
 void compile(void) {
