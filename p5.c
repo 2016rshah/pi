@@ -952,14 +952,18 @@ int statement(struct trie_node *local_root_ptr, int perform) {
             printf("    call glutInitWindowSize\n");
             printf("    movq $windowtitle, %%rdi\n");
             printf("    call glutCreateWindow\n");
+            printf("    call bg_setupwindow\n");
             printf("    movq $windowloop_%u, %%rdi\n", window_count);
             printf("    call glutDisplayFunc\n");
+            printf("    movq $windowloop_%u, %%rdi\n", window_count);
+            printf("    call glutIdleFunc\n");
             printf("    call glutMainLoop\n");
             printf("    jmp windowdone_%u\n", window_count);
             printf("    windowloop_%u:\n", window_count);
             while(current_token->type != WINDOW_END){
                 statement(local_root_ptr, perform);
             }
+            printf("    call glFlush\n");
             printf("    ret\n");
             printf("    windowdone_%u:\n", window_count);
             printf("    //WINDOW END CODE BLOCK\n");
@@ -1253,6 +1257,22 @@ void compile(void) {
     printf("    ret\n");
     printf("//STANDARD FUNCTIONS BLOCK\n");
     printf("drawrect_fun:\n");
+    printf("    pushq %%r8\n");
+    printf("    call bg_clear\n");
+    printf("    movq 16(%%rsp), %%rdi\n");
+    printf("    movq 24(%%rsp), %%rsi\n");
+    printf("    movq 32(%%rsp), %%rdx\n");
+    printf("    movq 40(%%rsp), %%rcx\n");
+    printf("    call bg_drawrect\n");
+    printf("    popq %%r8\n");
+    printf("    ret\n");
+    printf("setcolor_fun:\n");
+    printf("    push %%r8\n");
+    printf("    movq $255, %%rdi\n");
+    printf("    movq $255, %%rsi\n");
+    printf("    movq $255, %%rdx\n");
+    printf("    call bg_setcolor\n");
+    printf("    pop %%r8\n");
     printf("    ret\n");
     printf("//END STANDARD FUNCTIONS BLOCK\n");
 
