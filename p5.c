@@ -955,6 +955,7 @@ int statement(struct trie_node *local_root_ptr, int perform) {
     } else if (isType()) {
         num_variable_declarations++;
         int isStruct = isStructType();
+	//int whichVarType = findVarType();
         char* typeName = current_token->value.id;
         consume();
         if (!isId()) {
@@ -975,7 +976,7 @@ int statement(struct trie_node *local_root_ptr, int perform) {
             expression(local_root_ptr, perform);
             if (perform) {
                 set(id, local_root_ptr);
-            }
+	    } 
         } else {
             if (isSemi()) {
                 consume();
@@ -1172,14 +1173,14 @@ void function(void) {
     int var_num = 2;
     local_var_num = -1;
     while (!isRight()) {
-        int varType = findVarType();
+        //int varType = findVarType();
 	consume();
         if (!isId()) {
             error(GENERAL, "invalid parameter name");
         }
         char *param_id = getId();
         consume();
-        setVarNum(param_id, local_root_ptr, var_num++, varType);
+        setVarNum(param_id, local_root_ptr, var_num++);
         free(param_id);
         if (isComma()) {
             consume();
@@ -1279,6 +1280,7 @@ void globalVarDef(void) {
     if (!isType()) {
         error(GENERAL, "expected global variable declaration");
     }
+    //int varType = findVarType(); 
     consume();
     if (!isId()) {
         error(GENERAL, "not a valid global variable name");
