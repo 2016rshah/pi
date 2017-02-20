@@ -633,7 +633,7 @@ int getVarNum(char *id, struct trie_node *node_ptr) {
     return node_ptr->var_num;
 }
 
-void setVarNum(char *id, struct trie_node *node_ptr, int var_num, int variableType) {
+void setVarNum(char *id, struct trie_node *node_ptr, int var_num){ //,int variableType) {
     for (char* ch_ptr = id; *ch_ptr != 0; ch_ptr++) {
         int child_num;
         if (isdigit(*ch_ptr)) {
@@ -645,7 +645,7 @@ void setVarNum(char *id, struct trie_node *node_ptr, int var_num, int variableTy
             struct trie_node *new_node_ptr = calloc(1, sizeof(struct trie_node));
             new_node_ptr->parent = node_ptr;
             new_node_ptr->ch = *ch_ptr;
-            new_node_ptr->varType = variableType;
+            //new_node_ptr->varType = variableType;
             node_ptr->children[child_num] = new_node_ptr;
         }
         node_ptr = node_ptr->children[child_num];
@@ -671,13 +671,13 @@ void get(char *id, struct trie_node *local_root_ptr) {
 }
 
 /* prints instructions to set the value of the variable to the value of %rax */
-void set(char *id, struct trie_node *local_root_ptr, int variableType) {
+void set(char *id, struct trie_node *local_root_ptr){//, int variableType) {
     int var_num = getVarNum(id, local_root_ptr);
     switch (var_num) {
         case 0:
             //check global, if not there, error
             if (getVarNum(id, global_root_ptr)) {
-                setVarNum(id, global_root_ptr, 1, variableType);
+                setVarNum(id, global_root_ptr, 1); //variableType);
                 printf("    mov %%rax,%s_var\n", id);
             } else {
                 error(GENERAL, "variable not found");
@@ -937,20 +937,20 @@ int statement(struct trie_node *local_root_ptr, int perform) {
             error(GENERAL, "expected =");
         }
         consume();
-        int variableType = getVarType(id, local_root_ptr);
+        //int variableType = getVarType(id, local_root_ptr);
         expression(local_root_ptr, perform);
         if (perform) {
 	    if (overrideSet) {
                 setAddress();
             } else {
-                set(id, local_root_ptr, variableType);
+                set(id, local_root_ptr);//debug
             }
         }
         if (isSemi()) {
             consume();
         }
         return 1;
-    } else if(isBoolean() || isLong() || isChar()) {
+   /* } else if(isBoolean() || isLong() || isChar()) {
 	int whichVarType;
 	if(isBoolean()) {
 	    whichVarType = 0;
@@ -974,11 +974,11 @@ int statement(struct trie_node *local_root_ptr, int perform) {
 	if (isSemi()) {
 	    consume();
 	}
-	return 1;
+	return 1;*/
     } else if (isType()) {
         num_variable_declarations++;
         int isStruct = isStructType();
-	int whichVarType = findVarType();
+	//int whichVarType = findVarType();
         char* typeName = current_token->value.id;
         consume();
         if (!isId()) {
@@ -994,19 +994,19 @@ int statement(struct trie_node *local_root_ptr, int perform) {
         if (isEq()) {
             consume();
             if (perform) {
-                setVarNum(id, local_root_ptr, local_var_num--, whichVarType);
+                setVarNum(id, local_root_ptr, local_var_num--); //debbug
             }
             expression(local_root_ptr, perform);
             if (perform) {
-                set(id, local_root_ptr, whichVarType);
+                set(id, local_root_ptr);//debug
             }
         } else {
             if (isSemi()) {
                 consume();
             }
             if (perform) {
-                setVarNum(id, local_root_ptr, local_var_num--, whichVarType);
-                set(id, local_root_ptr, whichVarType);
+                setVarNum(id, local_root_ptr, local_var_num--);//debug
+                set(id, local_root_ptr);//debug
             }
         }
         return 1;
@@ -1196,14 +1196,14 @@ void function(void) {
     int var_num = 2;
     local_var_num = -1;
     while (!isRight()) {
-        int varType = findVarType();
+        //int varType = findVarType();
 	consume();
         if (!isId()) {
             error(GENERAL, "invalid parameter name");
         }
         char *param_id = getId();
         consume();
-        setVarNum(param_id, local_root_ptr, var_num++, varType);
+        setVarNum(param_id, local_root_ptr, var_num++);
         free(param_id);
         if (isComma()) {
             consume();
@@ -1303,20 +1303,20 @@ void globalVarDef(void) {
     if (!isType()) {
         error(GENERAL, "expected global variable declaration");
     }
-    int varType = findVarType(); 
+    //int varType = findVarType(); 
     consume();
     if (!isId()) {
         error(GENERAL, "not a valid global variable name");
     }
     char *id = getId();
     consume();
-    setVarNum(id, global_root_ptr, 1, varType);
+    setVarNum(id, global_root_ptr, 1);
     if (isEq()) {
         consume();
 
         struct trie_node *local_root_ptr = calloc(1, sizeof(struct trie_node));
         expression(local_root_ptr, 1);
-        set(id, local_root_ptr, varType);
+        set(id, local_root_ptr);
     }
     if (isSemi()) {
         consume();
