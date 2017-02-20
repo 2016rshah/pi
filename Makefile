@@ -69,7 +69,7 @@ $(EOUTS) : %.out : %
 gouts : $(GOUTS)
 
 $(GOUTS) : %.out : %
-	./$* > $*.out
+	./$*
 
 diffs : $(DIFFS)
 
