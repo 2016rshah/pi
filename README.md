@@ -25,7 +25,7 @@ Once you have done some things that work:
 
 - Make sure that you have incorporated the latest version of `master` into your branch.
 - Switch to the master branch using `git checkout master`.
-- Add your changes to master by using `git merge master`.
+- Add your changes to master by using `git merge <your branch name>`.
 - Use `git push` to push the changes to the repository.
 - If you are going to add more changes, switch back to your branch.
 

@@ -18,6 +18,7 @@ enum token_type {
     DELAY_KWD,
     WINDOW_START,
     WINDOW_END,
+	PLAY_KWD,
     EQ, 
     DEFINE_KWD,
     EQ_EQ,
@@ -356,7 +357,9 @@ struct token *getToken(void) {
 
         if (strcmp(id_buffer, "if") == 0) {
             next_token->type = IF_KWD;
-        } else if (strcmp(id_buffer, "else") == 0) {
+        } else if (strcmp(id_buffer, "play") == 0) {
+			next_token->type = PLAY_KWD;
+		} else if (strcmp(id_buffer, "else") == 0) {
             next_token->type = ELSE_KWD;
         } else if (strcmp(id_buffer, "while") == 0) {
             next_token->type = WHILE_KWD;
@@ -463,6 +466,10 @@ int isWindowStart() {
 
 int isWindowEnd() {
     return current_token->type == WINDOW_END;
+}
+
+int isPlay() {
+	return current_token->type == PLAY_KWD;
 }
 
 int isSemi() {
@@ -890,12 +897,12 @@ int statement(struct trie_node *local_root_ptr, int perform) {
         if (!isId()) {
             error(GENERAL, "expected identifier after type name");
         }
-	char *id = getId();
+		char *id = getId();
         if (perform) {
             if (isStruct) {
                 printf("    call %s_struct\n", typeName);
             } 
-	}
+		}
         consume();
         if (isEq()) {
             consume();
@@ -1075,7 +1082,59 @@ int statement(struct trie_node *local_root_ptr, int perform) {
         printf("    pop %%rsi\n");
         printf("    pop %%rdi\n"); 
         return 1;
-    } else {
+    } else if (isPlay()) {
+		consume();
+		if(!isLeft()) {
+			/*error(GENERAL, "Missing parenthesis after play");*/
+		}
+		
+		consume();
+		/*frequency*/
+        expression(local_root_ptr, perform);
+		if(perform != 0) {
+			printf("	mov %%rax, %%rdi\n");
+		}
+        
+   		if(!isComma()) {
+			/*error(GENERAL, "Missing comma after frequency");*/
+		}
+		
+		consume();
+		/*length*/
+		expression(local_root_ptr, perform);
+		if(perform != 0) {
+			printf("	mov %%rax, %%rsi\n");
+		}
+		if(!isComma()) {
+			/*error(GENERAL, "Missing comma after frequency");*/
+		}
+
+		consume();
+		/*repetitions*/
+		expression(local_root_ptr, perform);
+		if(perform != 0) {
+			printf("	mov %%rax, %%rdx\n");
+		}
+		/*
+		if(!isComma()) {
+			error(GENERAL, "Missing comma after frequency");
+		}
+		consume();
+		
+		expression(local_root_ptr, perform);
+		if(perform != 0) {
+			printf("	mov %%rax, %%r8\n");
+		}
+		*/
+		if(!isRight()) {
+			/*error(GENERAL, "Missing right parenthesis after play");*/
+		}
+		if(perform != 0) {
+			printf("	call play\n");
+		}
+		consume();
+		return 1;
+	} else {
         return 0;
     }
 }
