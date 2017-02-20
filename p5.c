@@ -50,12 +50,14 @@ union token_value {
     uint64_t integer;
 };
 struct swit_token{
-    char * id;
+    int casecount;
     struct swit_token * next;
+    int switchnum;
 };
 struct swit_entry{
     uint64_t value;
-    char *id;
+    int casecount;
+    int switchnum;
     struct swit_entry *next;
 };
 struct token {
@@ -104,7 +106,6 @@ static unsigned int window_count = 0;
 
 static unsigned int switch_count = 0;
 static unsigned int case_count = 0;
-static unsigned int lastswival = 0;
 static struct swit_token * swithead = NULL;
 static struct swit_token * switinsert = NULL;
 static struct swit_entry * switenhead = NULL;
@@ -1107,15 +1108,17 @@ int statement(struct trie_node *local_root_ptr, int perform) {
          if(current_token->type != LEFT_BLOCK){
             error(GENERAL, "Missing left bracket after declaration of switch statement");
          }
+         int locrunswiflag = runswiflag;
          runswiflag = 0;
          statement(local_root_ptr, 0);
+         runswiflag = locrunswiflag;
        }
        else{
          consume();
          expression(local_root_ptr, 1);
          case_count = 0;
          defaultflag = 0;
-         res_token = current_token;
+         struct  token * res_token = current_token;
          runswiflag = 1;
          statement(local_root_ptr, 0);
          runswiflag = 0;
@@ -1130,32 +1133,34 @@ int statement(struct trie_node *local_root_ptr, int perform) {
             error(GENERAL, "Switch statement with only default case not allowed");
          }
          printf("    subq $%lu, %%rax\n", switenhead->value);
-         uint64_t lowest = switenhead->val;
+         uint64_t lowest = switenhead->value;
          printf(".data\n");
          printf(".SW%d:\n", switch_count);
          struct swit_entry *cur = switenhead;
          uint64_t currentval = 0;
          while(cur != NULL){
-            printf("  .quad    %s\n", cur->id);
-            currentval = cur->val;
+            printf("  .quad    .%dSW%d\n", cur->switchnum, cur->casecount);
+            currentval = cur->value;
             switenhead = cur;
             cur = cur->next;
-            free(switenhead->id);
             free(switenhead);
             if(cur == NULL){
                 break;
             }
-            while(currentval != cur->val - 1){
+            while(currentval != cur->value - 1){
                 printf("  .quad    .%dSWDEF\n", switch_count);
                 currentval++;
             }
          }
         switenhead = NULL;
         printf(".text\n");
-        printf("    cmpq $%d, %%rax", currentval - lowest);
+        printf("    cmpq $%lu, %%rax", currentval - lowest);
         printf("    ja  .%dSWDEF\n", switch_count);
-        printf("    jmp  *.SW%d(,%%rax, 8)\n", switch_count)
+        printf("    jmp  *.SW%d(,%%rax, 8)\n", switch_count);
+        int locswitch_count = switch_count;
         switch_count++;
+        statement(local_root_ptr, 1);
+        printf(" ESW%d\n", locswitch_count);
        }
        return 1;
     } else if(isCase() || isDefault()){
@@ -1165,33 +1170,113 @@ int statement(struct trie_node *local_root_ptr, int perform) {
              caseflag++;
              consume();
              uint64_t casenum = getInt();
-             char buffer[50];
-             int throwaway = sprintf(buffer, ) 
-
+             consume();
+             struct swit_entry * curent = malloc(sizeof(struct swit_entry));
+             struct swit_token * curtok = malloc(sizeof(struct swit_token));
+             curent->value = casenum;
+             curent->casecount = case_count;
+             curent->switchnum = switch_count;
+             curtok->casecount = case_count;
+             curtok->switchnum = switch_count;
+             if(switenhead == NULL){
+                switenhead = curent;
+                curent->next = NULL;
+             }
+             else{
+               struct swit_entry * curentins = switenhead;
+               struct swit_entry * curentinsprev = NULL;
+             while(curent->value > curentins->value){
+                 curentinsprev = curentins;
+                 curentins = curentins->next;
+                 if(curentins == NULL){
+                    break;
+                 }
+               }
+              if(curentins->value == curent->value){
+                error(GENERAL, "Two identical cases");
+              }
+              if(curentinsprev == NULL){
+                switenhead = curent;
+                curent-> next = curentins; 
+              }
+              else{
+                curentinsprev->next = curent;
+                curent->next = curentins;
+              }
+              if(swithead == NULL){
+                 swithead = curtok;
+                 switinsert = curtok;
+                 curtok->next = NULL;
+              }
+              else{
+                if(switinsert->switchnum != curtok->switchnum){
+                    curtok->next = swithead;
+                    swithead = curtok;
+                    switinsert = curtok;
+                }
+                else{
+                    curtok->next = switinsert->next;
+                    switinsert->next = curtok;
+                    switinsert = curtok;
+                }
+              }
+             }
            }
            if(isDefault()){
              defaultflag++;
+             consume();
+             struct swit_token * curtok = malloc(sizeof(struct swit_token));
+             curtok->switchnum = switch_count;
+             if(swithead == NULL){
+                 swithead = curtok;
+                 switinsert = curtok;
+                 curtok->next = NULL;
+              }
+              else{
+                if(switinsert->switchnum != curtok->switchnum){
+                    curtok->next = swithead;
+                    swithead = curtok;
+                    switinsert = curtok;
+                }
+                else{
+                    curtok->next = switinsert->next;
+                    switinsert->next = curtok;
+                    switinsert = curtok;
+                }
+              }
            }
          }
          else{
            consume();
-           if(isInt){
+           if(isInt()){
             consume();
            }
          }
         }
         else{
-
+           if(swithead == NULL){
+             error(GENERAL, "No switch labels to allocate");
+           }
+           if(isCase()){
+             printf(".%dSW%d:\n", swithead->switchnum, swithead->casecount);
+             consume();
+             consume();
+           }
+           if(isDefault()){
+             printf(".%dSWDEF:\n", swithead->switchnum);
+             consume();
+           }
+           int locswitchnum = swithead->switchnum;
+           swithead = swithead->next;
+           while(!isCase() && !isBreak() && !isRightBlock()){
+            statement(local_root_ptr, 1);
+           }
+           if(isBreak()){
+             printf("    jmp ESW%d\n", locswitchnum);
+             consume();
+           }
         }
        return 1;
-    } else if(isBreak()){
-        if(perform  == 0){
-            consume();
-        }
-        else{
-
-        }
-        return 1;
     } else{
         return 0;
     }
