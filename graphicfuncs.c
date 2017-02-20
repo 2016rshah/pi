@@ -1,5 +1,4 @@
 #include <glut.h>
-#include <stdio.h>
 long window_x_size = 500;
 long window_y_size = 500;
 void bg_drawrect(long _x, long _y, long _w, long _h){

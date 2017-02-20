@@ -1,6 +1,9 @@
+long x = 0;
 fun main(){
-long qq = 0;
 startwindow 500 500
-qq = drawrect(100, 100, 300, 300);
+qq = drawrect(1000000, 1000000, 300000, 300000);
+qq = drawrect(2000000, 1000000, 300000, 300000);
+qq = drawrect(3000000, 1000000, 300000, 300000);
+x = x + 20;
 endwindow
 }

@@ -1258,7 +1258,6 @@ void compile(void) {
     printf("//STANDARD FUNCTIONS BLOCK\n");
     printf("drawrect_fun:\n");
     printf("    pushq %%r8\n");
-    printf("    call bg_clear\n");
     printf("    movq 16(%%rsp), %%rdi\n");
     printf("    movq 24(%%rsp), %%rsi\n");
     printf("    movq 32(%%rsp), %%rdx\n");
@@ -1268,9 +1267,9 @@ void compile(void) {
     printf("    ret\n");
     printf("setcolor_fun:\n");
     printf("    push %%r8\n");
-    printf("    movq $255, %%rdi\n");
-    printf("    movq $255, %%rsi\n");
-    printf("    movq $255, %%rdx\n");
+    printf("    movq $127, %%rdi\n");
+    printf("    movq $127, %%rsi\n");
+    printf("    movq $127, %%rdx\n");
     printf("    call bg_setcolor\n");
     printf("    pop %%r8\n");
     printf("    ret\n");
