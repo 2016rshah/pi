@@ -615,6 +615,7 @@ void setVarNum(char *id, struct trie_node *node_ptr, int var_num) {
 /* prints instructions to set the value of %rax to the value of the variable */
 void getArr(char *id, struct trie_node *local_root_ptr, int arrIndex) {
     int var_num = getVarNum(id, local_root_ptr);
+    fprintf(stderr, "get varnum is %d\n", var_num);
     printf("    push %%r15\n");
     switch (var_num) {
         case 0:
@@ -622,7 +623,7 @@ void getArr(char *id, struct trie_node *local_root_ptr, int arrIndex) {
             printf("    mov %s_var,%%r15\n", id);
             break;
         default:
-            printf("    mov %d(%%rbp), %%r15\n", 8 * (var_num + 1));
+            printf("    mov %d(%%rbp), %%r15\n", 8 * (var_num));
     }
     printf("    lea %d(%%r15), %%rax\n", 8 * arrIndex);
     printf("    pop %%r15\n");
@@ -1032,7 +1033,7 @@ void makeArraySpace(char* id, struct trie_node *local_root_ptr, int isInner, int
 }
 
 int statement(struct trie_node *local_root_ptr, int perform) {
-    fprintf(stderr, "%s\n", current_token->value.id);
+    //fprintf(stderr, "%s\n", current_token->value.id);
     if (isId()) {
         printf("    push %%r8\n");
         printf("    push %%r9\n");
