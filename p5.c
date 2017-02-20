@@ -956,19 +956,20 @@ int statement(struct trie_node *local_root_ptr, int perform) {
 		consume();
 		/*frequency*/
         expression(local_root_ptr, perform);
-		printf("	mov %%rax, %%rdi\n");
-        /* consume next comma*/
-       	consume();
-		if(!isComma()) {
+		if(perform != 0) {
+			printf("	mov %%rax, %%rdi\n");
+		}
+        
+   		if(!isComma()) {
 			/*error(GENERAL, "Missing comma after frequency");*/
 		}
 		
 		consume();
 		/*length*/
 		expression(local_root_ptr, perform);
-		printf("	mov %%rax, %%rsi\n");
-		/*consume next comma*/
-        consume();
+		if(perform != 0) {
+			printf("	mov %%rax, %%rsi\n");
+		}
 		if(!isComma()) {
 			/*error(GENERAL, "Missing comma after frequency");*/
 		}
@@ -976,13 +977,26 @@ int statement(struct trie_node *local_root_ptr, int perform) {
 		consume();
 		/*repetitions*/
 		expression(local_root_ptr, perform);
-		printf("	mov %%rax, %%rdx\n");
-		/*consume right paren*/
-        consume();
+		if(perform != 0) {
+			printf("	mov %%rax, %%rdx\n");
+		}
+		/*
+		if(!isComma()) {
+			error(GENERAL, "Missing comma after frequency");
+		}
+		consume();
+		
+		expression(local_root_ptr, perform);
+		if(perform != 0) {
+			printf("	mov %%rax, %%r8\n");
+		}
+		*/
 		if(!isRight()) {
 			/*error(GENERAL, "Missing right parenthesis after play");*/
 		}
-		printf("	call play\n");
+		if(perform != 0) {
+			printf("	call play\n");
+		}
 		consume();
 		return 1;
 	} else {
