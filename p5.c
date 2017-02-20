@@ -173,6 +173,7 @@ void appendChar(char ch) {
 }
 
 void addType(char* typeName){
+    fprintf(stderr, "Added type: %s\n", typeName);
     definedTypeCount++;
     if(definedTypeCount > definedTypeResize){
         definedTypeResize = definedTypeResize * 2;
@@ -1004,6 +1005,7 @@ void makeArraySpace(char* id, struct trie_node *local_root_ptr, int isInner, int
         printf("    mov $%lu, %%rdi\n", 8*size);
         printf("    call malloc\n");
         if (!isInner) {
+            setVarNum(id, local_root_ptr, local_var_num--);
             set(id, local_root_ptr);
         }
         else {
@@ -1030,6 +1032,7 @@ void makeArraySpace(char* id, struct trie_node *local_root_ptr, int isInner, int
 }
 
 int statement(struct trie_node *local_root_ptr, int perform) {
+    fprintf(stderr, "%s\n", current_token->value.id);
     if (isId()) {
         printf("    push %%r8\n");
         printf("    push %%r9\n");
@@ -1079,21 +1082,17 @@ int statement(struct trie_node *local_root_ptr, int perform) {
     	if(perform && isStruct){
 	        printf("    call %s_struct\n", typeName);
 	    }
-
         else if (isArray()) {
             consume(); // consume the id
             makeArraySpace(id, local_root_ptr, 0, perform);
-           printf("    pop %%r9\n");
+            printf("    pop %%r9\n");
             printf("    pop %%r8\n");
-            if (isSemi()) {
-                consume();
-            }
             return 1;
         }
 /*        if (perform) {
     	    set(id, local_root_ptr);
         } */
-       consume();
+        consume();
         if (isEq()) {
             consume();
             if (perform) {
