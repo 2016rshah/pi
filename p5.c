@@ -356,11 +356,11 @@ struct token *getToken(void) {
         appendChar('\0');
 
         if (strcmp(id_buffer, "if") == 0) {
-            next_token.type = IF_KWD;
+            next_token->type = IF_KWD;
         } else if (strcmp(id_buffer, "play") == 0) {
-			next_token.type = PLAY_KWD;
+			next_token->type = PLAY_KWD;
 		} else if (strcmp(id_buffer, "else") == 0) {
-            next_token.type = ELSE_KWD;
+            next_token->type = ELSE_KWD;
         } else if (strcmp(id_buffer, "while") == 0) {
             next_token->type = WHILE_KWD;
         } else if (strcmp(id_buffer, "fun") == 0) {
@@ -469,11 +469,7 @@ int isWindowEnd() {
 }
 
 int isPlay() {
-	return tokens[token_index].type == PLAY_KWD;
-}
-
-int isPlay() {
-	return tokens[token_index].type == PLAY_KWD;
+	return current_token->type == PLAY_KWD;
 }
 
 int isSemi() {

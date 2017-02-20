@@ -28,7 +28,7 @@ $(OFILES) : %.o : %.c Makefile
 progs : $(PROGS)
 
 $(PROGS) : % : %.o
-	gcc -o $@ $*.o graphicfuncs.o -lGL -lGLU libglut.so.3
+	gcc -o $@ $*.o graphicfuncs.o -lGL -lGLU libglut.so.3 playSound.o
 
 outs : $(OUTS)
 
