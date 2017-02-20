@@ -39,6 +39,8 @@ enum token_type {
     END,
     SWITCH,
     CASE,
+    BREAK,
+    DEFAULT
 };
 
 char* tokenStrings[33] = {"IF", "ELSE", "WHILE", "FUN", "RETURN", "PRINT", "STRUCT", "TYPE", "BELL", "DELAY", "WINDOW_START", "WINDOW_END", "=", "DEFINE", "==", "<", ">", "<>", ";", ",", ".", "(", ")", "{", "}", "+", "*", "ID", "INTEGER", "USER_OP", "END", "SWITCH", "CASE"};
@@ -47,7 +49,15 @@ union token_value {
     char *id;
     uint64_t integer;
 };
-
+struct swit_token{
+    char * id;
+    struct swit_token * next;
+};
+struct swit_entry{
+    uint64_t value;
+    char *id;
+    struct swit_entry *next;
+};
 struct token {
     enum token_type type;
     union token_value value;
@@ -91,11 +101,21 @@ static struct trie_node *global_root_ptr;
 static unsigned int if_count = 0;
 static unsigned int while_count = 0;
 static unsigned int window_count = 0;
-//static unsigned int switch_count = 0;
+
+static unsigned int switch_count = 0;
+static unsigned int case_count = 0;
+static unsigned int lastswival = 0;
+static struct swit_token * swithead = NULL;
+static struct swit_token * switinsert = NULL;
+static struct swit_entry * switenhead = NULL;
+static unsigned int defaultflag = 0;
+static unsigned int caseflag = 0;
+static unsigned int runswiflag = 0;
+
+
 static int local_var_num = -1;
 static int num_variable_declarations = 0;
 static char *function_name;
-
 static char **definedTypes;
 static int definedTypeCount = 0;
 static int definedTypeResize = 10;
@@ -368,6 +388,10 @@ struct token *getToken(void) {
             next_token->type = PRINT_KWD;
         } else if (strcmp(id_buffer, "bell") == 0) {
             next_token->type = BELL_KWD;
+        } else if (strcmp(id_buffer, "default") == 0) {
+            next_token->type = DEFAULT;
+        } else if (strcmp(id_buffer, "break") == 0) {
+            next_token->type = BREAK;
         } else if (strcmp(id_buffer, "startwindow") == 0) {
             next_token->type = WINDOW_START;  
         } else if (strcmp(id_buffer, "endwindow") == 0) {
@@ -444,7 +468,12 @@ int isType(){
 int isReturn() {
     return current_token->type == RETURN_KWD;
 }
-
+int isDefault(){
+    return current_token->type == DEFAULT;
+}
+int isBreak(){
+    return current_token->type == BREAK;
+}
 int isPrint() {
     return current_token->type == PRINT_KWD;
 }
@@ -1071,7 +1100,99 @@ int statement(struct trie_node *local_root_ptr, int perform) {
         printf("    pop %%rsi\n");
         printf("    pop %%rdi\n"); 
         return 1;
-    } else {
+    } else if(isSwitch()){
+       if(perform == 0){
+         consume();
+         expression(local_root_ptr, 0);
+         if(current_token->type != LEFT_BLOCK){
+            error(GENERAL, "Missing left bracket after declaration of switch statement");
+         }
+         runswiflag = 0;
+         statement(local_root_ptr, 0);
+       }
+       else{
+         consume();
+         expression(local_root_ptr, 1);
+         case_count = 0;
+         defaultflag = 0;
+         res_token = current_token;
+         runswiflag = 1;
+         statement(local_root_ptr, 0);
+         runswiflag = 0;
+         current_token = res_token;
+         if(defaultflag == 0){
+            error(GENERAL, "No switch allowed without default");
+         }
+         if(defaultflag > 1){
+            error(GENERAL, "Only one default statement allowed");
+         }
+         if(caseflag == 0){
+            error(GENERAL, "Switch statement with only default case not allowed");
+         }
+         printf("    subq $%lu, %%rax\n", switenhead->value);
+         uint64_t lowest = switenhead->val;
+         printf(".data\n");
+         printf(".SW%d:\n", switch_count);
+         struct swit_entry *cur = switenhead;
+         uint64_t currentval = 0;
+         while(cur != NULL){
+            printf("  .quad    %s\n", cur->id);
+            currentval = cur->val;
+            switenhead = cur;
+            cur = cur->next;
+            free(switenhead->id);
+            free(switenhead);
+            if(cur == NULL){
+                break;
+            }
+            while(currentval != cur->val - 1){
+                printf("  .quad    .%dSWDEF\n", switch_count);
+                currentval++;
+            }
+         }
+        switenhead = NULL;
+        printf(".text\n");
+        printf("    cmpq $%d, %%rax", currentval - lowest);
+        printf("    ja  .%dSWDEF\n", switch_count);
+        printf("    jmp  *.SW%d(,%%rax, 8)\n", switch_count)
+        switch_count++;
+       }
+       return 1;
+    } else if(isCase() || isDefault()){
+        if(perform == 0){
+         if(runswiflag){
+           if(isCase()){
+             caseflag++;
+             consume();
+             uint64_t casenum = getInt();
+             char buffer[50];
+             int throwaway = sprintf(buffer, ) 
+
+           }
+           if(isDefault()){
+             defaultflag++;
+           }
+         }
+         else{
+           consume();
+           if(isInt){
+            consume();
+           }
+         }
+        }
+        else{
+
+        }
+       return 1;
+    } else if(isBreak()){
+        if(perform  == 0){
+            consume();
+        }
+        else{
+
+        }
+        return 1;
+    } else{
         return 0;
     }
 }
