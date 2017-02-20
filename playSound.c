@@ -8,12 +8,13 @@
 int play(int freq, int length, int reps) {
 	int i; /* loop counter */
 	char buf[25];
-	sprintf(buf, "play -n synth %d sin %d", length, freq);
+	float seconds = length / 1000.0;
+	sprintf(buf, "play -n synth %f sin %d", seconds, freq);
 
 	for (i = 0; i < reps; i++) {
 		system(buf);
-		usleep(200);                                    
-	}                                                     
+		usleep(50);		
+	}	
 	return 0;
 }
 
