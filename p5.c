@@ -25,6 +25,9 @@ enum token_type {
     LT,
     GT,
     LT_GT,
+	AND,
+	OR,
+	XOR,
     SEMI,
     COMMA,
     DOT,
@@ -42,7 +45,7 @@ enum token_type {
     CASE,
 };
 
-char* tokenStrings[33] = {"IF", "ELSE", "WHILE", "FUN", "RETURN", "PRINT", "STRUCT", "TYPE", "BELL", "DELAY", "WINDOW_START", "WINDOW_END", "=", "DEFINE", "==", "<", ">", "<>", ";", ",", ".", "(", ")", "{", "}", "+", "*", "ID", "INTEGER", "USER_OP", "END", "SWITCH", "CASE"};
+char* tokenStrings[37] = {"IF", "ELSE", "WHILE", "FUN", "RETURN", "PRINT", "STRUCT", "TYPE", "BELL", "DELAY", "WINDOW_START", "WINDOW_END", "PLAY", "=", "DEFINE", "==", "<", ">", "<>", "AND", "OR", "XOR", ";", ",", ".", "(", ")", "{", "}", "+", "*", "ID", "INTEGER", "USER_OP", "END", "SWITCH", "CASE"};
 
 union token_value {
     char *id;
@@ -102,7 +105,7 @@ static int definedTypeCount = 0;
 static int definedTypeResize = 10;
 static int standardTypeCount = 0;
 /*static int perform = 1;*/
-//static char *op_not_allowed = "_+*{}()|&~=<>,;\n\t\r"; //stores characters that can't be user operators
+//static char *op_not_allowed = "_+*{}()|&^=<>,;\n\t\r"; //stores characters that can't be user operators
 static struct user_operator* user_ops; //stores linked list of user operators
 
 enum error_code {
@@ -310,7 +313,16 @@ struct token *getToken(void) {
     } else if (next_char == '>') {
         next_char = getchar();
         next_token->type = GT;
-    } else if (next_char == ';') {
+    } else if (next_char == '&') {
+		next_char = getchar();
+		next_token->type = AND;
+	} else if (next_char == '|') {
+		next_char = getchar();
+		next_token->type = OR;
+	} else if (next_char == '^') {
+		next_char = getchar();
+		next_token->type = XOR;		
+	} else if (next_char == ';') {
         next_char = getchar();
         next_token->type = SEMI;
     } else if (next_char == ',') {
@@ -429,9 +441,11 @@ int isElse() {
 int isSwitch() {
     return current_token->type == SWITCH;
 }
+
 int isCase(){
     return current_token->type == CASE;
 }
+
 int isFun() {
     return current_token->type == FUN_KWD;
 }
@@ -510,6 +524,18 @@ int isGt() {
 
 int isLtGt() {
     return current_token->type == LT_GT;
+}
+
+int isAnd() {
+	return current_token->type == AND;
+}
+
+int isOr() {
+	return current_token->type == OR;
+} 
+
+int isXOr() {
+	return current_token->type == XOR;
 }
 
 int isLeft() {
@@ -820,16 +846,52 @@ void e4(struct trie_node *local_root_ptr, int perform) {
     }
 }
 
+/* handle '==' */
+void e5(struct trie_node *local_root_ptr, int perform) {
+    e4(local_root_ptr, perform);
+    if (perform) {
+        printf("    mov %%r15,%%rbx\n");
+    }
+    while (1) {
+        if (isAnd()) {
+            consume();
+            e4(local_root_ptr, perform);
+            if (perform) {
+                printf("    and %%r15,%%rbx\n");
+            }
+        } else if (isOr()) {
+            consume();
+            e4(local_root_ptr, perform);
+            if (perform) {
+                printf("    or %%r15,%%rbx\n");
+            }
+        } else if (isXOr()) {
+            consume();
+            e4(local_root_ptr, perform);
+            if (perform) {
+                printf("    xor %%r15,%%rbx\n");
+            }
+        } else {
+            break;
+        }
+    }
+}
+
+
 void expression(struct trie_node *local_root_ptr, int perform) {
     if (perform) {
         printf("    push %%r12\n");
         printf("    push %%r13\n");
         printf("    push %%r14\n");
         printf("    push %%r15\n");
+		printf("	push %%rbx\n");
+ 		printf("    sub $8,%%rsp\n");
     }
-    e4(local_root_ptr, perform);
+    e5(local_root_ptr, perform);
     if (perform) {
-        printf("    mov %%r15,%%rax\n");
+        printf("    mov %%rbx,%%rax\n");
+		printf("    add $8,%%rsp\n");
+		printf("	pop %%rbx\n");
         printf("    pop %%r15\n");
         printf("    pop %%r14\n");
         printf("    pop %%r13\n");
@@ -1081,7 +1143,7 @@ int statement(struct trie_node *local_root_ptr, int perform) {
     } else if (isPlay()) {
 		consume();
 		if(!isLeft()) {
-			/*error(GENERAL, "Missing parenthesis after play");*/
+			error(GENERAL, "Missing parenthesis after play");
 		}
 		
 		consume();
@@ -1092,7 +1154,7 @@ int statement(struct trie_node *local_root_ptr, int perform) {
 		}
         
    		if(!isComma()) {
-			/*error(GENERAL, "Missing comma after frequency");*/
+			error(GENERAL, "Missing comma after frequency");
 		}
 		
 		consume();
@@ -1102,7 +1164,7 @@ int statement(struct trie_node *local_root_ptr, int perform) {
 			printf("	mov %%rax, %%rsi\n");
 		}
 		if(!isComma()) {
-			/*error(GENERAL, "Missing comma after frequency");*/
+			error(GENERAL, "Missing comma after frequency");
 		}
 
 		consume();
@@ -1111,19 +1173,8 @@ int statement(struct trie_node *local_root_ptr, int perform) {
 		if(perform != 0) {
 			printf("	mov %%rax, %%rdx\n");
 		}
-		/*
-		if(!isComma()) {
-			error(GENERAL, "Missing comma after frequency");
-		}
-		consume();
-		
-		expression(local_root_ptr, perform);
-		if(perform != 0) {
-			printf("	mov %%rax, %%r8\n");
-		}
-		*/
 		if(!isRight()) {
-			/*error(GENERAL, "Missing right parenthesis after play");*/
+			error(GENERAL, "Missing right parenthesis after play");
 		}
 		if(perform != 0) {
 			printf("	call play\n");
