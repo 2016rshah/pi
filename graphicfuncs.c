@@ -1,16 +1,20 @@
 #include <glut.h>
 long window_x_size = 500;
 long window_y_size = 500;
+float getWx(long x){
+    return x / (window_x_size * 10000.0f);
+}
+float getWy(long y){
+    return y / (window_y_size * 10000.0f);
+}
 void bg_drawrect(long _x, long _y, long _w, long _h){
     float x = _x;
     float y = _y;
-    float wX = window_x_size * 10000;
-    float wY = window_y_size * 10000;
     glBegin(GL_POLYGON);
-    glVertex3f(x / wX, y / wY, 0.0f);
-    glVertex3f((x + _w) / wX, y / wY, 0.0f);
-    glVertex3f((x + _w) / wX, (y + _h) / wY, 0.0f);
-    glVertex3f(x / wX, (y + _h) / wY, 0.0f);
+    glVertex3f(getWx(x), getWy(y), 0.0f);
+    glVertex3f(getWx(x + _w), getWy(y), 0.0f);
+    glVertex3f(getWx(x + _w), getWy(y + _h), 0.0f);
+    glVertex3f(getWx(x), getWy(y + _h), 0.0f);
     glEnd();
 }
 void bg_setcolor(long _r, long _g, long _b){
@@ -30,6 +34,15 @@ void bg_setupwindow(){
     glLoadIdentity();
     //We are going to set our bounds in various directions.
     glOrtho(0.0f, 1.0f, 0.0f, 1.0f, -1.0f, 1.0f);
+}
+void bg_startpolygon(){
+    glBegin(GL_POLYGON);
+}
+void bg_addpoint(long x, long y){
+    glVertex3f(getWx(x), getWy(y), 0.0f);
+}
+void bg_endpolygon(){
+    glEnd();
 }
 void bg_clear(){
     glClear(GL_COLOR_BUFFER_BIT);
