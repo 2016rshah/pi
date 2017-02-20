@@ -1,5 +1,5 @@
 
-
+long x = 0;
 fun a(v) {
     return x
 }
