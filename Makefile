@@ -97,6 +97,8 @@ all:
 
 clean :
 	rm -f $(PROGS)
+	rm -f $(EPROGS)
+	rm -f $(GPROGS)
 	rm -f *.S
 	rm -f *.out
 	rm -f *.d
