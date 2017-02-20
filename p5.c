@@ -1087,6 +1087,9 @@ int statement(struct trie_node *local_root_ptr, int perform) {
             makeArraySpace(id, local_root_ptr, 0, perform);
             printf("    pop %%r9\n");
             printf("    pop %%r8\n");
+            if (isSemi()) {
+                consume();
+            }
             return 1;
         }
 /*        if (perform) {
