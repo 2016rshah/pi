@@ -18,10 +18,6 @@ enum token_type {
     DELAY_KWD,
     WINDOW_START,
     WINDOW_END,
-    FINAL_KWD,//IMPLEMENT THIS
-    LONG_KWD,
-    BOOLEAN_KWD,
-    CHAR_KWD,
     EQ, 
     DEFINE_KWD,
     EQ_EQ,
@@ -66,12 +62,6 @@ struct trie_node {
     //for the global namespace, var_num is 0 if unassigned and 1 if assigned
     //for a local namespace, var_num is 0 if unassigned and the parameter number (1 indexed) if assigned
     int var_num;
-
-    //indicates whether or not a variable had the final keyword in front of it and is constant
-    int isConstant;
-   
-    //This is the position of the type in the typeArray and is the type of the variable 
-    int varType;
     //for purposes of printing
     char ch;
 };
@@ -124,26 +114,26 @@ static void printUnbalancedError(enum token_type left, enum token_type right){
     struct token* i_token = current_token;
     unsigned int balance = 1;
     while((*i_token).prev != NULL && balance != 0){
-	if((*i_token).type == left){
-	    balance--;
-	}
-	else if((*i_token).type == right){
-	    balance++;
-	}
-	i_token = (*i_token).prev;
+if((*i_token).type == left){
+    balance--;
+}
+else if((*i_token).type == right){
+    balance++;
+}
+i_token = (*i_token).prev;
     }
     i_token = (*i_token).next;
     while(i_token != current_token){
-	if((*i_token).type == ID){
-	    fprintf(stderr, "%s ", (*i_token).value.id);
-	}
-	else if((*i_token).type == INTEGER){
-	    fprintf(stderr, "%lu ", (*i_token).value.integer);
-	}
-	else{
-	    fprintf(stderr, "%s ", tokenStrings[(*i_token).type]);
-	}
-	i_token = (*i_token).next;
+if((*i_token).type == ID){
+    fprintf(stderr, "%s ", (*i_token).value.id);
+}
+else if((*i_token).type == INTEGER){
+    fprintf(stderr, "%lu ", (*i_token).value.integer);
+}
+else{
+    fprintf(stderr, "%s ", tokenStrings[(*i_token).type]);
+}
+i_token = (*i_token).next;
     }
     fprintf(stderr, "\n");
 }
@@ -152,18 +142,18 @@ void error(enum error_code errorCode, char* message){
     /* fprintf(stderr, "error: %s\n", message); */
     switch (errorCode){
     case GENERAL :
-	fprintf(stderr, "General error: %s\n", message);
-	break;
+fprintf(stderr, "General error: %s\n", message);
+break;
     case PAREN_MISMATCH:
-	fprintf(stderr, "Expected right paren in expression:\n");
-	printUnbalancedError(LEFT, RIGHT);
-	break;
+fprintf(stderr, "Expected right paren in expression:\n");
+printUnbalancedError(LEFT, RIGHT);
+break;
     case BRACKET_MISMATCH:
-	fprintf(stderr, "Expected right bracket:\n");
-	printUnbalancedError(LEFT_BLOCK, RIGHT_BLOCK);
+fprintf(stderr, "Expected right bracket:\n");
+printUnbalancedError(LEFT_BLOCK, RIGHT_BLOCK);
     default:
-	fprintf(stderr, "Yikes");
-	break;
+fprintf(stderr, "Yikes");
+break;
     }
     //current_token = (*current_token).next;
 }
@@ -189,13 +179,11 @@ void addType(char* typeName){
 }
 
 void addStandardTypes(){
-    addType("boolean");
-    addType("char");
     addType("long");
     standardTypeCount = definedTypeCount;
 }
 
-//Assumes that the object is already a type, returns the position of the type in definedTypes
+//Assumes that the object is already a type
 int isStructType(){
     for(int index = 0; index < standardTypeCount; index++){
         if(strcmp(current_token->value.id, definedTypes[index]) == 0){
@@ -205,20 +193,9 @@ int isStructType(){
     return 1;
 }
 
-int findVarType(){
-    for(int index = 0; index < definedTypeCount; index++){
-        fprintf(stderr, "%s\n", tokens[token_index].value.id);
-        if(strcmp(tokens[token_index].value.id, definedTypes[index]) == 0){
-            return index;
-        }
-    }
-    return -1;
-}
-
-
 //Since a type system doesn't quite exist yet, all struct variables have to start with stru
 int isVarStruct(char* name){
-    return name[0] == 's' && name[1] == 't' && name[2] == 'r' && name[3] =='u';	
+    return name[0] == 's' && name[1] == 't' && name[2] == 'r' && name[3] =='u';
 }
 
 //figures out what index a certain variable is in a struct
@@ -408,22 +385,9 @@ struct token *getToken(void) {
             next_token->value.id = strdup(id_buffer);
         } else if (strcmp(id_buffer, "define") == 0) {
             next_token->type = DEFINE_KWD;
-	} else if (strcmp(id_buffer, "struct") == 0) {
-	    next_token.type = STRUCT_KWD;
-	} else if (strcmp(id_buffer, "long") == 0) {
-	    next_token.type = LONG_KWD;
-	} else if (strcmp(id_buffer, "char") == 0) {
-	    next_token.type = CHAR_KWD;
-	} else if (strcmp(id_buffer, "boolean") == 0) {
-	    next_token.type = BOOLEAN_KWD;
-	} else if (strcmp(id_buffer, "final") == 0) {
-	    next_token.type = FINAL_KWD;
- 	} else if (isTypeName(id_buffer)) {
-	    next_token.type = TYPE_KWD;
-            next_token.value.id = strdup(id_buffer);
-	} else {
-            next_token.type = ID;
-            next_token.value.id = strcpy(malloc(id_length), id_buffer);
+        } else {
+            next_token->type = ID;
+            next_token->value.id = strcpy(malloc(id_length), id_buffer);
         }
     } else if(isUserOp(next_char)) { //user operator outside define statement
         //TODO: implement this
@@ -433,7 +397,7 @@ struct token *getToken(void) {
         //4. replace a and b with actual variable names
         //5. add the tokens to the overall list of tokens
     } else {
-	error(GENERAL, "invalid character");
+error(GENERAL, "invalid character");
         next_token->type = 0;
     }
 
@@ -499,22 +463,6 @@ int isWindowStart() {
 
 int isWindowEnd() {
     return current_token->type == WINDOW_END;
-}
-
-int isFinal() { 
-    return tokens[token_index].type == FINAL_KWD;
-}
-
-int isLong() {
-    return tokens[token_index].type == LONG_KWD;
-}
-
-int isChar() {
-    return tokens[token_index].type == CHAR_KWD;
-}
-
-int isBoolean() {
-    return tokens[token_index].type == BOOLEAN_KWD;
 }
 
 int isSemi() {
@@ -603,22 +551,6 @@ void freeTrie(struct trie_node *node_ptr) {
     free(node_ptr);
 }
 
-int getVarType(char *id, struct trie_node *node_ptr) {
-    for (char* ch_ptr = id; *ch_ptr != 0; ch_ptr++) {
-        int child_num;
-        if (isdigit(*ch_ptr)) {
-            child_num = *ch_ptr - '0';
-        } else {
-            child_num = *ch_ptr - 'a' + 10;
-        }
-        if (node_ptr->children[child_num] == 0) {
-            return node_ptr->varType;
-        }
-        node_ptr = node_ptr->children[child_num];
-    }
-    return -1;
-}
-
 int getVarNum(char *id, struct trie_node *node_ptr) {
     for (char* ch_ptr = id; *ch_ptr != 0; ch_ptr++) {
         int child_num;
@@ -647,7 +579,6 @@ void setVarNum(char *id, struct trie_node *node_ptr, int var_num) {
             struct trie_node *new_node_ptr = calloc(1, sizeof(struct trie_node));
             new_node_ptr->parent = node_ptr;
             new_node_ptr->ch = *ch_ptr;
-            //new_node_ptr->varType = variableType;
             node_ptr->children[child_num] = new_node_ptr;
         }
         node_ptr = node_ptr->children[child_num];
@@ -903,37 +834,37 @@ int statement(struct trie_node *local_root_ptr, int perform) {
     if (isId()) {
         char *id = getId();
         consume();
-	int overrideSet = 0;
+int overrideSet = 0;
         if (perform) {
             if (isDot()) {
                 get(id, local_root_ptr);
                 overrideSet = 1;
             }
         }
-	int displacement = -1;
-	while (isDot()) {
+int displacement = -1;
+while (isDot()) {
             if (perform) {
-		if (!isVarStruct(id)) {
-		    error(GENERAL, "Nonstruct variable being followed by .");
+if (!isVarStruct(id)) {
+    error(GENERAL, "Nonstruct variable being followed by .");
                 }
             }
-	    char* structName = current_token->value.id;
-	    consume();
+    char* structName = current_token->value.id;
+    consume();
             if (perform) {
                 if (!isId()) {
-		    error(GENERAL, "expected identifier after dot operator");
-		}
+    error(GENERAL, "expected identifier after dot operator");
+}
                 id = getId();
                 if (displacement != -1) {
-		    printf("    movq %d(%%rax), %%rax\n", displacement); 
+    printf("    movq %d(%%rax), %%rax\n", displacement); 
                 }
                 displacement = getVarIndexInStruct(id, structName) * 8;
             }
-	    consume();
-	    }
-	if (overrideSet) {
+    consume();
+    }
+if (overrideSet) {
             printf("    movq %%rax, %%r8\n");
-	    printf("    addq $%d, %%r8\n", displacement);
+    printf("    addq $%d, %%r8\n", displacement);
         }
         if (!isEq()) {
             error(GENERAL, "expected =");
@@ -941,13 +872,12 @@ int statement(struct trie_node *local_root_ptr, int perform) {
         consume();
         expression(local_root_ptr, perform);
         if (perform) {
-	    if (overrideSet) {
+    if (overrideSet) {
                 setAddress();
             } else {
                 set(id, local_root_ptr);
             }
         }
-        //int variableType = getVarType(id, local_root_ptr);
         if (isSemi()) {
             consume();
         }
@@ -955,18 +885,17 @@ int statement(struct trie_node *local_root_ptr, int perform) {
     } else if (isType()) {
         num_variable_declarations++;
         int isStruct = isStructType();
-	//int whichVarType = findVarType();
         char* typeName = current_token->value.id;
         consume();
         if (!isId()) {
             error(GENERAL, "expected identifier after type name");
-	}
-	char *id = getId();
+        }
+char *id = getId();
         if (perform) {
             if (isStruct) {
                 printf("    call %s_struct\n", typeName);
             } 
-	}
+}
         consume();
         if (isEq()) {
             consume();
@@ -976,7 +905,7 @@ int statement(struct trie_node *local_root_ptr, int perform) {
             expression(local_root_ptr, perform);
             if (perform) {
                 set(id, local_root_ptr);
-	    } 
+            }
         } else {
             if (isSemi()) {
                 consume();
@@ -1173,8 +1102,6 @@ void function(void) {
     int var_num = 2;
     local_var_num = -1;
     while (!isRight()) {
-        //int varType = findVarType();
-	consume();
         if (!isId()) {
             error(GENERAL, "invalid parameter name");
         }
@@ -1235,7 +1162,7 @@ void structDef(void) {
     printf("    movq %%rax, %%r8\n");
     int selfDefined = 0;
     while(isType()){
-	printf("    movq %%r8, %%rdi\n");
+printf("    movq %%r8, %%rdi\n");
         printf("    movq $%d, %%rsi\n", count * 8 + 8);
         printf("    call realloc\n");
         printf("    movq %%rax, %%r8\n");
@@ -1245,20 +1172,20 @@ void structDef(void) {
             }
             printf("    call %s_struct\n", current_token->value.id);
             printf("    movq %%rax, %d(%%r8)\n", count * 8);
-	} else {
+} else {
             printf("    movq $333, %%rax\n");
             printf("    movq %%rax, %d(%%r8)\n", count * 8);
         }
-	consume();
+consume();
         //check if pointer
-	while(isMul()){
+while(isMul()){
             selfDefined = 0;
             consume();
         }
         if(selfDefined){
             error(GENERAL, "Struct defined in itself");
         }
-	if(!isId()){
+if(!isId()){
             error(GENERAL, "expected identifier after type in struct definition");
         }
         consume();
@@ -1280,7 +1207,6 @@ void globalVarDef(void) {
     if (!isType()) {
         error(GENERAL, "expected global variable declaration");
     }
-    //int varType = findVarType(); 
     consume();
     if (!isId()) {
         error(GENERAL, "not a valid global variable name");
