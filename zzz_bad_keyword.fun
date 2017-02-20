@@ -1,4 +1,4 @@
-fun a(long x){
+fun a(x){
     return x;
 }
 
