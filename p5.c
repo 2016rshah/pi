@@ -472,6 +472,10 @@ int isPlay() {
 	return tokens[token_index].type == PLAY_KWD;
 }
 
+int isPlay() {
+	return tokens[token_index].type == PLAY_KWD;
+}
+
 int isSemi() {
     return current_token->type == SEMI;
 }
