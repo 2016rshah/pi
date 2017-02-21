@@ -46,6 +46,177 @@ endpolygon_fun:
 main_fun:
     push %rbp
     mov %rsp,%rbp
+    subq $16,%rsp
+    push %r12
+    push %r13
+    push %r14
+    push %r15
+	push %rbx
+    sub $8,%rsp
+    push %r12
+    push %r13
+    push %r14
+    push %r15
+	push %rbx
+    sub $8,%rsp
+    mov $2,%r12
+    mov %r12,%r13
+    mov %r13,%r14
+    mov $3,%r12
+    mov %r12,%r13
+    mov $4,%r12
+    imul %r12,%r13
+    add %r13,%r14
+    mov $5,%r12
+    mov %r12,%r13
+    add %r13,%r14
+    mov %r14,%r15
+    mov %r15,%rbx
+    mov %rbx,%rax
+    add $8,%rsp
+	pop %rbx
+    pop %r15
+    pop %r14
+    pop %r13
+    pop %r12
+    mov %rax,%r12
+    mov %r12,%r13
+    mov %r13,%r14
+    mov %r14,%r15
+    mov %r15,%rbx
+    mov %rbx,%rax
+    add $8,%rsp
+	pop %rbx
+    pop %r15
+    pop %r14
+    pop %r13
+    pop %r12
+    mov %rax,-8(%rbp)
+    push %r12
+    push %r13
+    push %r14
+    push %r15
+	push %rbx
+    sub $8,%rsp
+    push %r12
+    push %r13
+    push %r14
+    push %r15
+	push %rbx
+    sub $8,%rsp
+    mov -8(%rbp),%rax
+    mov %rax,%r12
+    mov %r12,%r13
+    mov %r13,%r14
+    mov %r14,%r15
+    mov %r15,%rbx
+    mov %rbx,%rax
+    add $8,%rsp
+	pop %rbx
+    pop %r15
+    pop %r14
+    pop %r13
+    pop %r12
+    mov %rax,%r12
+    mov %r12,%r13
+    mov %r13,%r14
+    mov %r14,%r15
+    mov %r15,%rbx
+    mov %rbx,%rax
+    add $8,%rsp
+	pop %rbx
+    pop %r15
+    pop %r14
+    pop %r13
+    pop %r12
+    subq $19, %rax
+.data
+.SW0:
+  .quad    .0SW1
+  .quad    .0SW2
+  .quad    .0SW3
+  .quad    .0SW0
+.text
+    cmpq $3, %rax
+    ja  .0SWDEF
+    jmp  *.SW0(,%rax, 8)
+.0SW0:
+    jmp ESW0
+.0SW1:
+    push %r12
+    push %r13
+    push %r14
+    push %r15
+	push %rbx
+    sub $8,%rsp
+    mov -8(%rbp),%rax
+    mov %rax,%r12
+    mov %r12,%r13
+    mov %r13,%r14
+    mov %r14,%r15
+    mov %r15,%rbx
+    mov %rbx,%rax
+    add $8,%rsp
+	pop %rbx
+    pop %r15
+    pop %r14
+    pop %r13
+    pop %r12
+    mov $output_format,%rdi
+    mov %rax,%rsi
+    call printf
+.0SW2:
+    push %r12
+    push %r13
+    push %r14
+    push %r15
+	push %rbx
+    sub $8,%rsp
+    mov $15,%r12
+    mov %r12,%r13
+    mov %r13,%r14
+    mov %r14,%r15
+    mov %r15,%rbx
+    mov %rbx,%rax
+    add $8,%rsp
+	pop %rbx
+    pop %r15
+    pop %r14
+    pop %r13
+    pop %r12
+    mov $output_format,%rdi
+    mov %rax,%rsi
+    call printf
+    jmp ESW0
+.0SW3:
+    push %r12
+    push %r13
+    push %r14
+    push %r15
+	push %rbx
+    sub $8,%rsp
+    mov $21,%r12
+    mov %r12,%r13
+    mov %r13,%r14
+    mov %r14,%r15
+    mov %r15,%rbx
+    mov %rbx,%rax
+    add $8,%rsp
+	pop %rbx
+    pop %r15
+    pop %r14
+    pop %r13
+    pop %r12
+    mov $output_format,%rdi
+    mov %rax,%rsi
+    call printf
+.0SWDEF:
+    jmp ESW0
+ ESW0:
+main_end:
+    addq $16,%rsp
+    pop %rbp
+    ret
     global_0:
     ret
     .data

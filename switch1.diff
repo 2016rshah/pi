@@ -1,4 +1,1 @@
-===> switch1 ... fail
------ expected ------
-19
------ found -----
+===> switch1 ... pass
