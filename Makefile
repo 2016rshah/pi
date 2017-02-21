@@ -1,4 +1,4 @@
 test:
-	rm tests/p5.c
-	cp p5.c tests/
+	rm tests/*.c
+	cp *.c tests/
 	$(MAKE) clean test -C tests/
