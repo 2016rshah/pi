@@ -21,7 +21,7 @@ OFILES=$(patsubst %.c,%.o,$(CFILES))
 CFLAGS=-g -std=gnu99 -O0 -Werror -Wall
 
 p5 : $(OFILES) Makefile
-	gcc $(CFLAGS) -o p5 $(OFILES) -lGL -lGLU libglut.so.3
+	gcc $(CFLAGS) -o p5 $(OFILES) -lGL -lGLU libglut.so.3 -lm
 
 $(OFILES) : %.o : %.c Makefile
 	gcc $(CFLAGS) -MD -c $*.c -I .
@@ -44,17 +44,17 @@ $(OFILES) : %.o : %.c Makefile
 eprogs : $(EPROGS)
 
 $(EPROGS) : % : %.o
-	gcc -o $@ $*.o graphicfuncs.o -lGL -lGLU libglut.so.3 playSound.o
+	gcc -o $@ $*.o graphicfuncs.o -lGL -lGLU libglut.so.3 playSound.o -lm
 
 gprogs : $(GPROGS)
 
 $(GPROGS) : % : %.o
-	gcc -o $@ $*.o graphicfuncs.o -lGL -lGLU libglut.so.3 playSound.o
+	gcc -o $@ $*.o graphicfuncs.o -lGL -lGLU libglut.so.3 playSound.o -lm
 
 progs : $(PROGS)
 
 $(PROGS) : % : %.o
-	gcc -o $@ $*.o graphicfuncs.o -lGL -lGLU libglut.so.3 playSound.o
+	gcc -o $@ $*.o graphicfuncs.o -lGL -lGLU libglut.so.3 playSound.o -lm
 
 outs : $(OUTS)
 
