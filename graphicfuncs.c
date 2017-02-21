@@ -1,10 +1,17 @@
 #include <glut.h>
+#include <math.h>
 long window_x_size = 500;
 long window_y_size = 500;
 float getWx(long x){
     return x / (window_x_size * 10000.0f);
 }
 float getWy(long y){
+    return y / (window_y_size * 10000.0f);
+}
+float getDwx(double x){
+    return x / (window_x_size * 10000.0f);
+}
+float getDwy(double y){
     return y / (window_y_size * 10000.0f);
 }
 void bg_drawrect(long _x, long _y, long _w, long _h){
@@ -42,6 +49,16 @@ void bg_addpoint(long x, long y){
     glVertex3f(getWx(x), getWy(y), 0.0f);
 }
 void bg_endpolygon(){
+    glEnd();
+}
+void bg_drawngon(long x, long y, long radius, long n){
+    glBegin(GL_POLYGON);
+    double angle = 0;
+    double step = 2 * 3.1415 / n;
+    for(int i = 0; i < n; i++){
+        glVertex3f(getDwx(x + cos(angle) * radius), getDwy(y + sin(angle) * radius), 0.0f);
+        angle = angle + step;
+    }
     glEnd();
 }
 void bg_clear(){

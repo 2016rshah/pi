@@ -1,4 +1,4 @@
-fun things(a,b) {
+fun things(long a, long b) {
     print a
     print b
 }
