@@ -74,6 +74,7 @@ struct struct_data {
 struct token {
     enum token_type type;
     union token_value value;
+    int line_num;
     struct token *next;
     struct token *prev;
 };
@@ -131,6 +132,7 @@ static int standardTypeCount = 0;
 static struct user_operator* user_ops; //stores linked list of user operators
 
 static int num_errors = 0;
+static int curr_line_num = 1;
 
 enum error_code {
     GENERAL,
@@ -169,18 +171,17 @@ static void printUnbalancedError(enum token_type left, enum token_type right){
 
 void error(enum error_code errorCode, char* message){
     num_errors++;
-    /* fprintf(stderr, "error: %s\n", message); */
     switch (errorCode){
     case GENERAL :
-	fprintf(stderr, "General error: %s\n", message);
+	fprintf(stderr, "General error on line %d: %s\n", current_token->line_num, message);
 	break;
     case PAREN_MISMATCH:
-	fprintf(stderr, "Expected right paren in expression:\n");
+	fprintf(stderr, "Expected right paren in expression on line %d:\n", current_token->line_num);
 	printUnbalancedError(LEFT, RIGHT);
 	current_token = (*current_token).prev;
 	break;
     case BRACKET_MISMATCH:
-	fprintf(stderr, "Expected right bracket:\n");
+	fprintf(stderr, "Expected right bracket on line %d:\n", current_token->line_num);
 	printUnbalancedError(LEFT_BLOCK, RIGHT_BLOCK);
 	current_token = (*current_token).prev;
 	break;
@@ -192,7 +193,7 @@ void error(enum error_code errorCode, char* message){
 }
 
 void error_missingVariable(char* id){
-    fprintf(stderr, "Could not find variable in symbol table: `%s`", id);
+    fprintf(stderr, "Undeclared variable on line %d: `%s`\n", current_token->line_num, id);
 }
 
 /* append a character to the id buffer */
@@ -317,12 +318,16 @@ struct token *tokenAt(int offset) {
 char removeWhitespace(char next_char) {
     while (1) {
         if (isspace(next_char)) {
-            next_char = getchar();
+	    if(next_char == '\n'){
+		curr_line_num++;
+	    }
+	    next_char = getchar();
         } else if (next_char == '#') {
             while (next_char != '\n' && next_char != -1) {
                 next_char = getchar();
             }
-            next_char = getchar();
+            next_char = getchar(); //eat the newline character
+	    curr_line_num++;
         } else {
             break;
         }
@@ -339,7 +344,8 @@ struct token *getToken(void) {
     static char next_char = ' ';
 
     next_char = removeWhitespace(next_char);        
-
+    next_token->line_num = curr_line_num;
+    
     if (next_char == -1) {
         next_token->type = END;
     } else if (next_char == '=') {
@@ -954,14 +960,14 @@ void expression(struct trie_node *local_root_ptr, int perform) {
         printf("    push %%r13\n");
         printf("    push %%r14\n");
         printf("    push %%r15\n");
-		printf("	push %%rbx\n");
- 		printf("    sub $8,%%rsp\n");
+	printf("    push %%rbx\n");
+	printf("    sub $8,%%rsp\n");
     }
     e5(local_root_ptr, perform);
     if (perform) {
         printf("    mov %%rbx,%%rax\n");
-		printf("    add $8,%%rsp\n");
-		printf("	pop %%rbx\n");
+	printf("    add $8,%%rsp\n");
+	printf("    pop %%rbx\n");
         printf("    pop %%r15\n");
         printf("    pop %%r14\n");
         printf("    pop %%r13\n");
