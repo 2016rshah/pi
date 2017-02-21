@@ -115,8 +115,8 @@ struct user_operator {
     struct token *expression;
     int type1;
     int type2;
-    char *var_id_1;
-    char *var_id_2;
+    char *var1;
+    char *var2;
 };
 
 static jmp_buf escape;
@@ -1772,7 +1772,7 @@ void globalVarDef(void) {
 
 void definePass(void) {
     current_token = first_token;
-    user_operator current_op = NULL;
+    struct user_operator *current_op = NULL;
     while(current_token->type != END) { //look through whole list of tokens
         //handle define statements
         if(current_token->type == DEFINE_KWD) {
@@ -1820,7 +1820,6 @@ void definePass(void) {
             //get expression
             current_token = current_token->next;
             //store previous and current while forming linked list
-            struct token *prev_copy = NULL;
             struct token *curr_copy = NULL;
             while(current_token->type != SEMI) { //expression ends with semicolon
                 //copy token
@@ -1831,8 +1830,6 @@ void definePass(void) {
                 
                 //copy next/prev nodes
                 if(curr_copy == NULL) { //first node in expression is null
-                    copy->prev == NULL;
-                    copy->next == NULL;
                     curr_copy = copy;
                     //add as the operator's head of expression linked list
                     operator->expression = copy;
@@ -1873,6 +1870,7 @@ void definePass(void) {
                 //left off here
             }
         }
+        current_token = current_token->next;
     }
     current_token = first_token;
 
