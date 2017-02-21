@@ -1740,6 +1740,14 @@ int statement(struct trie_node *local_root_ptr, int perform) {
          }
          printf("    subq $%lu, %%rax\n", switenhead->value);
          uint64_t lowest = switenhead->value;
+         struct swit_entry * checkgthan = switenhead;
+         while(checkgthan != NULL){
+            if(checkgthan-> value - lowest > 50){
+                printf("    cmpq $%lu, %%rax\n", checkgthan-> value - lowest);
+                printf("    je .%dSW%d\n", checkgthan->switchnum, checkgthan->casecount);
+            }
+            checkgthan = checkgthan->next;
+         }
          printf(".data\n");
          printf(".SW%d:\n", switch_count);
          struct swit_entry *cur = switenhead;
@@ -1750,7 +1758,7 @@ int statement(struct trie_node *local_root_ptr, int perform) {
             switenhead = cur;
             cur = cur->next;
             free(switenhead);
-            if(cur == NULL){
+            if(cur == NULL || cur-> value - lowest > 50){
                 break;
             }
             while(currentval != cur->value - 1){
@@ -1875,6 +1883,9 @@ int statement(struct trie_node *local_root_ptr, int perform) {
              consume();
            }
            int locswitchnum = swithead->switchnum;
+           if(swithead == switinsert){
+            switinsert = switinsert->next;
+           }
            swithead = swithead->next;
            while(!isCase() && !isBreak() && !isRightBlock()){
             statement(local_root_ptr, 1);
