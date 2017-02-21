@@ -118,6 +118,7 @@ static unsigned int window_count = 0;
 //static unsigned int switch_count = 0;
 static int local_var_num = -1;
 static int num_variable_declarations = 0;
+static int num_global_vars = 0;
 static char *function_name;
 
 static int struct_count = 0;
@@ -1418,6 +1419,7 @@ void globalVarDef(void) {
     if (!isType()) {
         error(GENERAL, "Expected global variable type declaration\n");
     }
+    int isStruct = isStructType();
     consume();
     if (!isId()) {
         error(GENERAL, "Expected valid identifier\n");
@@ -1425,13 +1427,18 @@ void globalVarDef(void) {
     char *id = getId();
     consume();
     setVarNum(id, global_root_ptr, 1);
+    printf("global_%d:\n", num_global_vars++);
+    struct trie_node *local_root_ptr = calloc(1, sizeof(struct trie_node));
     if (isEq()) {
         consume();
-
-        struct trie_node *local_root_ptr = calloc(1, sizeof(struct trie_node));
         expression(local_root_ptr, 1);
         set(id, local_root_ptr);
     }
+    if (isStruct) {
+        printf("    call %s_struct\n", id);
+        set(id, local_root_ptr);
+    }
+    printf("    jmp global_%d\n", num_global_vars);
     if (isSemi()) {
         consume();
     }
@@ -1449,6 +1456,8 @@ void program(void) {
             break;
         }
     }
+    printf("    global_%d:\n", num_global_vars);
+    printf("    ret\n");
     if (!isEnd())
         error(GENERAL, "Expected end of file\n");
 }
@@ -1458,6 +1467,7 @@ void compile(void) {
     printf("    .global main\n");
     printf("main:\n");
     printf("    sub $8,%%rsp\n");
+    printf("    call global_0\n");
     printf("    call main_fun\n");
     printf("    mov $0,%%rax\n");
     printf("    add $8,%%rsp\n");
