@@ -1884,6 +1884,8 @@ void definePass(void) {
             //create new user operator
             struct user_operator *operator = calloc(1, sizeof(struct user_operator));
             operator->symbol = current_token->value.user_op;
+            operator->var1 = NULL;
+            operator->var2 = NULL;
             //add to list of user operators
             if(user_ops == NULL) { //no first link in linked list
                 user_ops = operator;
@@ -1895,7 +1897,7 @@ void definePass(void) {
             operator->next = NULL;
             
             //get type of first variable
-            current_token = current_token->next; 
+            current_token = current_token->next;
             if(current_token->type != TYPE_KWD) {
                 error(GENERAL, "no type specified for first variable in define statement");
             } else {
@@ -1916,8 +1918,17 @@ void definePass(void) {
             struct token *curr_copy = NULL;
             while(current_token->type != SEMI) { //expression ends with semicolon
                 //copy token
-                struct token *copy = malloc(sizeof(current_token));
-                copy->value = current_token->value;
+                struct token *copy = malloc(sizeof(struct token));
+                if(current_token->type == ID || current_token->type == TYPE_KWD) {
+                    copy->value.id = malloc(strlen(current_token->value.id));
+                    strcpy(copy->value.id, current_token->value.id);
+                }
+                else if(current_token->type == INTEGER) {
+                    copy->value.integer = current_token->value.integer;
+                }
+                else if(current_token->type == CHAR) {
+                    copy->value.character = current_token->value.character;
+                }
                 copy->isArray = current_token->isArray;
                 copy->line_num = current_token->line_num;
                 
@@ -1937,11 +1948,11 @@ void definePass(void) {
                 //check if token is a variable and store variable names
                 if(current_token->type == ID) {
                     if(operator->var1 == NULL) {
-                        operator->var1 = (char*)(calloc(1, sizeof(current_token->value.id)));
+                        operator->var1 = (char*)(malloc(strlen(current_token->value.id)));
                         strcpy(operator->var1, current_token->value.id);
                     }
                     else if(operator->var2 == NULL) {
-                        operator->var2 = (char*)(calloc(1, sizeof(current_token->value.id)));
+                        operator->var2 = (char*)(malloc(strlen(current_token->value.id)));
                         strcpy(operator->var2, current_token->value.id);
                     }
                     else if(!(strcmp(operator->var1, current_token->value.id) == 0 || strcmp(operator->var2, current_token->value.id) == 0)) {
@@ -1959,14 +1970,12 @@ void definePass(void) {
                 //get first variable involved in expression
 
                 //get second variable involved in expression
-
-                //left off here
+                
             }
         }
         current_token = current_token->next;
     }
     current_token = first_token;
-
 }
 
 void program(void) {
