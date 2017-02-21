@@ -799,7 +799,8 @@ void get(char *id, struct trie_node *local_root_ptr, char *instruction) {
             if (strcmp(instruction, "()") != 0) {
                 printf("    %s %d(%%rbp),%%rax\n", instruction, 8 * var_num);
             } else {
-                printf("    mov (%d(%%rbp)), %%rax", 8 * var_num);
+                printf("    mov %d(%%rbp), %%rax\n", 8 * var_num);
+                printf("    mov (%%rax), %%rax\n");
             }
     }
 }
@@ -1000,7 +1001,7 @@ void e1(struct trie_node *local_root_ptr, int perform) {
         consume();
         if (perform) {
             get(id, local_root_ptr, "()");
-            printf("    mov %%rax, %%r12");
+            printf("    mov %%rax, %%r12\n");
         }
     } else {
         error(GENERAL, "Expected expression\n");
@@ -1013,33 +1014,31 @@ void e2(struct trie_node *local_root_ptr, int perform) {
     if (perform) {
         printf("    mov %%r12,%%r13\n");
     }
-    while (isMul()) {
-        consume();
-        e1(local_root_ptr, perform);
-        if (perform) {
-            printf("    imul %%r12,%%r13\n");
-        }
-    }
-
-    while (isDiv()) {
-        consume();
-        e1(local_root_ptr, perform);
-        if (perform) {
-            printf("    mov %%r13, %%rax\n");
-            printf("    mov $0, %%rdx\n");
-            printf("    divq %%r12\n");
-            printf("    mov %%rax, %%r12\n");
-        }
-    }
-
-    while (isMod()) {
-        consume();
-        e1(local_root_ptr, perform);
-        if (perform) {
-            printf("    mov %%r13, %%rax\n");
-            printf("    mov $0, %%rdx\n");
-            printf("    divq %%r12\n");
-            printf("    mov %%rdx, %%r13\n");
+    while (isMul() || isDiv() || isMod()) {
+        if (isMul()) {
+            consume();
+            e1(local_root_ptr, perform);
+            if (perform) {
+                printf("    imul %%r12,%%r13\n");
+            }
+        } else if (isDiv()) {
+            consume();
+            e1(local_root_ptr, perform);
+            if (perform) {
+                printf("    mov %%r13, %%rax\n");
+                printf("    mov $0, %%rdx\n");
+                printf("    divq %%r12\n");
+                printf("    mov %%rax, %%r13\n");
+            }     
+        } else {
+            consume();
+            e1(local_root_ptr, perform);
+            if (perform) {
+                printf("    mov %%r13, %%rax\n");
+                printf("    mov $0, %%rdx\n");
+                printf("    divq %%r12\n");
+                printf("    mov %%rdx, %%r13\n");
+            } 
         }
     }
 }
@@ -1050,19 +1049,19 @@ void e3(struct trie_node *local_root_ptr, int perform) {
     if (perform) {
         printf("    mov %%r13,%%r14\n");
     }
-    while (isPlus()) {
-        consume();
-        e2(local_root_ptr, perform);
-        if (perform) {
-            printf("    add %%r13,%%r14\n");
-        }
-    }
-
-    while (isMinus()) {
-        consume();
-        e2(local_root_ptr, perform);
-        if (perform) {
-            printf("    sub %%r13, %%r14\n");
+    while (isPlus() || isMinus()) {
+        if (isPlus()) {
+            consume();
+            e2(local_root_ptr, perform);
+            if (perform) {
+                printf("    add %%r13,%%r14\n");
+            }
+        } else {
+            consume();
+            e2(local_root_ptr, perform);
+            if (perform) {
+                printf("    sub %%r13, %%r14\n");
+            }
         }
     }
 }
