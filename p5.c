@@ -964,7 +964,7 @@ void e1(struct trie_node *local_root_ptr, int perform) {
             int varType = getVarType(id, local_root_ptr);
             if(varType == 0) {
                 if (perform) {
-                    get(id, local_root_ptr, "mov");
+                    get(id, local_root_ptr, "leaq");
                     printf("    mov %%rax,%%r12\n");
                 }      
             } else if(perform) {
@@ -988,7 +988,7 @@ void e1(struct trie_node *local_root_ptr, int perform) {
             int varType = getVarType(id, local_root_ptr);
             if(varType == 1) {
                 if (perform) {
-                    get(id, local_root_ptr, "mov");
+                    get(id, local_root_ptr, "leaq");
                     printf("    mov %%rax,%%r12\n");
                 }
             } else if(perform) {
@@ -1101,7 +1101,7 @@ void e1(struct trie_node *local_root_ptr, int perform) {
         if (perform) {
             printf("    mov %%rax,%%r12\n");
         }
-    }  else if (isReference()) {
+    } else if (isReference()) {
         consume();
         if (!isId()) {
             error(GENERAL, "Cannot reference something that is not an identifier!");
