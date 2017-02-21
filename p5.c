@@ -31,7 +31,9 @@ enum token_type {
     DEREFERENCE,
     WINDOW_START,
     WINDOW_END,
-    PLAY_KWD,
+	PLAY_KWD,
+    KBLOGIC,
+    KBEND,
     EQ, 
     DEFINE_KWD,
     EQ_EQ,
@@ -520,11 +522,15 @@ struct token *getToken(void) {
             next_token->type = SWITCH;
         } else if (strcmp(id_buffer, "case") == 0){
             next_token->type = CASE;
-        } else if (strcmp(id_buffer, "true") == 0) {
-            next_token->type = TRUE;
-        } else if (strcmp(id_buffer, "false") == 0) {
-            next_token->type = FALSE;
-        }else if (isTypeName(id_buffer)) {
+        } else if (strcmp(id_buffer, "keyboard") == 0){
+            next_token->type = KBLOGIC;  
+        } else if (strcmp(id_buffer, "endkeyboard") == 0){
+            next_token->type = KBEND;  
+      	} else if (strcmp(id_buffer, "true") == 0) {
+	        next_token->type = TRUE;
+	    } else if (strcmp(id_buffer, "false") == 0) {
+	        next_token->type = FALSE;
+	    } else if (isTypeName(id_buffer)) {
             next_token->type = TYPE_KWD;
             next_token->value.id = strdup(id_buffer);
         } else if (strcmp(id_buffer, "define") == 0) {
@@ -758,7 +764,8 @@ void freeTrie(struct trie_node *node_ptr) {
     free(node_ptr);
 }
 
-int getVarType(char *id, struct trie_node *node_ptr) {
+//If you don't know what you're doing keep the dummy method
+/*int getVarType(char *id, struct trie_node *node_ptr) {
     for (char* ch_ptr = id; *ch_ptr != 0; ch_ptr++) {
         int child_num;
         if (isdigit(*ch_ptr)) {
@@ -772,6 +779,10 @@ int getVarType(char *id, struct trie_node *node_ptr) {
         node_ptr = node_ptr->children[child_num];
     }
     return node_ptr->var_type;
+}*/
+
+int getVarType(char *id, struct trie_node *node_ptr) {
+    return standardTypeCount;
 }
 
 int getVarNum(char *id, struct trie_node *node_ptr) {
@@ -992,6 +1003,10 @@ void e1(struct trie_node *local_root_ptr, int perform) {
     } else if (isId()) {
         char *id = getId();
         consume();
+        if(strcmp(id, "key") == 0 && perform){
+            printf("    mov %%rdi, %%r12\n");
+            return;
+        }
         if (isLeft()) {
             consume();
             int params = 0;
@@ -1288,7 +1303,7 @@ int getLeftSideVariable(struct trie_node *local_root_ptr, char* id, int isArr, i
         consume(); // consume ]
         if (perform) {
             if (isLeftBracket()) {
-                printf("    mov (%%rax), %%rax\n");
+                printf("    mov (%%rax), %%rax//pls no\n");
             }
         }
         while (isLeftBracket()) {
@@ -1506,23 +1521,50 @@ int statement(struct trie_node *local_root_ptr, int perform) {
             printf("    call glutInitWindowSize\n");
             printf("    movq $windowtitle, %%rdi\n");
             printf("    call glutCreateWindow\n");
+            printf("    movq %%rbp, rbp_store\n");
             printf("    call bg_setupwindow\n");
             printf("    movq $windowloop_%u, %%rdi\n", window_count);
             printf("    call glutDisplayFunc\n");
             printf("    movq $windowloop_%u, %%rdi\n", window_count);
             printf("    call glutIdleFunc\n");
+            if(current_token->type == KBLOGIC){
+                printf("    movq $keyboard_%u, %%rdi\n", window_count);
+                printf("    call glutKeyboardFunc\n");
+            }
             printf("    call glutMainLoop\n");
             printf("    jmp windowdone_%u\n", window_count);
+            if(current_token->type == KBLOGIC){
+                printf("    keyboard_%u:\n", window_count);
+                consume();
+                while(current_token->type != KBEND){
+                    statement(local_root_ptr, perform);
+                }
+                printf("    ret\n");
+                consume();
+            }
             printf("    windowloop_%u:\n", window_count);
+            printf("    call bg_clear\n");
+            printf("    push %%rbp\n");
+            printf("    push %%rbp\n");
+            printf("    mov rbp_store, %%rbp\n");
             while(current_token->type != WINDOW_END){
                 statement(local_root_ptr, perform);
             }
+            printf("    pop %%rbp\n");
+            printf("    pop %%rbp\n");
             printf("    call glFlush\n");
             printf("    ret\n");
             printf("    windowdone_%u:\n", window_count);
             printf("    //WINDOW END CODE BLOCK\n");
             window_count = window_count + 1;
         } else {
+            if(current_token->type == KBLOGIC){
+                consume();
+                while(current_token->type != KBEND){
+                    statement(local_root_ptr, perform);
+                }
+                consume();
+            }
             while(current_token->type != WINDOW_END){
                 statement(local_root_ptr, perform);
             }
@@ -1816,14 +1858,12 @@ void structDef(void) {
     printf("    movq %%r8, %%rax\n");
     printf("    pop %%r8\n");
     printf("    ret\n");
-    /*
        for(int i = 0; i < struct_count + 1; i++){
        fprintf(stderr, "struct %d exists\n", struct_info[i].id);
        for(int j = 0; j < struct_info[struct_count].type_count; j++){
        fprintf(stderr, "   %s is type %d\n", struct_info[i].data[j].name, struct_info[i].data[j].type);
        }
        }
-       */
     if (!isRightBlock()) {
         error(BRACKET_MISMATCH, "Unexpected token found before struct closed\n");
     }
@@ -2044,6 +2084,15 @@ void compile(void) {
     printf("    call bg_endpolygon\n");
     printf("    pop %%r8\n");
     printf("    ret\n");
+    printf("drawngon_fun:\n");
+    printf("    push %%r8\n");
+    printf("    movq 16(%%rsp), %%rdi\n");
+    printf("    movq 24(%%rsp), %%rsi\n");
+    printf("    movq 32(%%rsp), %%rdx\n");
+    printf("    movq 40(%%rsp), %%rcx\n");
+    printf("    call bg_drawngon\n");
+    printf("    pop %%r8\n");
+    printf("    ret\n");
     printf("//END STANDARD FUNCTIONS BLOCK\n");
 
     //Standard types are defined before token parsing since this knowledge is needed to know if a token is a type token
@@ -2076,6 +2125,8 @@ void compile(void) {
     printf("    .quad 0\n");
     printf("windowtitle:\n");
     printf("    .string \"Potato, the Epic Window\"\n");
+    printf("rbp_store:\n");
+    printf("    .quad 0\n");
     initVars(global_root_ptr);
 
     free(id_buffer);

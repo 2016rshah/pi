@@ -1,5 +1,4 @@
-
-long x = 100;
+long x = 0;
 fun a(long v) {
     return x
 }
