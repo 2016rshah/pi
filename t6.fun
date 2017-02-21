@@ -1,22 +1,22 @@
 long z = 0;
-fun b(x,y) {
+fun b(long x, long y) {
     print x + y
 }
 
-fun c(x,y) {
+fun c(long x,long y) {
     print x * y
 }
 
-fun a(x,y) {
+fun a(long x, long y) {
     if (x > y) {
-        z = b(x,y)
+        long z = b(x,y)
     } else {
-        z = c(x,y)
+        long z = c(x,y)
     }
 }
 
 fun main() {
-    z = a(10,20)
-    z = a(20,10)
+    long z = a(10,20)
+    long z = a(20,10)
 }
 

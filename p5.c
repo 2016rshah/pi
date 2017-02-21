@@ -50,6 +50,7 @@ char* tokenStrings[38] = {"IF", "ELSE", "WHILE", "FUN", "RETURN", "PRINT", "STRU
 union token_value {
     char *id;
     uint64_t integer;
+    char character;
 };
 
 struct token {
@@ -70,6 +71,12 @@ struct trie_node {
     char ch;
     //which type the variable is
    int var_type;
+};
+
+struct fun_signature {
+    char *funId;
+    char **variableType;    
+    struct fun_signature *next;
 };
 
 //used to store user operators, their symbols, and the expressions they represent
@@ -93,6 +100,8 @@ static struct token *first_token;
 static struct token *current_token;
 
 static struct trie_node *global_root_ptr;
+
+//static struct fun_signature *signature_head;
 
 static unsigned int if_count = 0;
 static unsigned int while_count = 0;
@@ -354,6 +363,15 @@ struct token *getToken(void) {
     } else if (next_char == '*') {
         next_char = getchar();
         next_token->type = MUL;
+    } else if (next_char == '\'') {
+	next_char = getchar();
+	next_token->type = CHAR;
+        next_token->value.character = next_char;
+	next_char = getchar();
+	if (next_char != '\'') {
+	    error(GENERAL, "invalid character");
+	}
+	next_char = getchar();
     } else if (isdigit(next_char)) {
         next_token->type = INTEGER;
         next_token->value.integer = 0;
@@ -546,6 +564,10 @@ int isFalse() {
     return current_token->type == FALSE;
 }
 
+int isChar() {
+    return current_token-> type == CHAR;
+}
+
 int isId() {
     return current_token->type == ID;
 }
@@ -569,6 +591,11 @@ char *getId() {
 uint64_t getInt() {
     return current_token->value.integer;
 }
+
+uint64_t getChar() {
+    return current_token->value.character;
+}
+
 
 void freeTrie(struct trie_node *node_ptr) {
     if (node_ptr == 0) {
@@ -717,13 +744,54 @@ void e1(struct trie_node *local_root_ptr, int perform) {
         consume();
     } else if(variableType == 0) { //boolean value
 	if(isTrue()) {
-	    printf("   mov $1, %%r12\n");
+	    if (perform) {
+	       printf("   mov $1, %%r12\n");
+	   }
+	    consume();
 	} else if(isFalse()) {
-	    printf("   mov $0, %%r12\n");
+	    if (perform) {
+	       printf("   mov $0, %%r12\n");
+	    }
+            consume();
+	} else if (isId()) {
+	   char *id = getId();
+	   consume();
+	    int varType = getVarType(id, local_root_ptr);
+	   if(varType == 0) {
+		if (perform) {
+                get(id, local_root_ptr);
+                printf("    mov %%rax,%%r12\n");
+                }      
+	   } else if(perform) {
+		error(GENERAL, "Given variable is not a boolean");
+	   }
 	} else {
 	    error(GENERAL, "Type mismatch, expecting boolean");
 	}
-	consume();
+	variableType = 2;
+     } else if (variableType == 1) {
+	if (isChar()) {
+	    if(perform){
+            uint64_t v = getChar();
+            printf("    mov $%" PRIu64 ",%%r12\n", v);
+            }
+            consume();
+	    
+	} else if (isId()) {
+           char *id = getId();
+           consume();
+            int varType = getVarType(id, local_root_ptr);
+           if(varType == 1) {
+                if (perform) {
+                get(id, local_root_ptr);
+                printf("    mov %%rax,%%r12\n");
+                }
+           } else if(perform) {
+                error(GENERAL, "Given variable is not a char");
+           }
+	} else if(perform) {
+	    error(GENERAL, "Type mismatch, expecting char");
+	}
 	variableType = 2;
      } else if (isInt()) {
         if(perform){
@@ -939,6 +1007,7 @@ int statement(struct trie_node *local_root_ptr, int perform) {
         if (isSemi()) {
             consume();
         }
+	variableType = 2;
         return 1;
     } else if (isType()) {
         num_variable_declarations++;
@@ -975,6 +1044,7 @@ int statement(struct trie_node *local_root_ptr, int perform) {
                 set(id, local_root_ptr, whichVar);
             }
         }
+	variableType = 2;
         return 1;
     } else if (isLeftBlock()) {
         consume();
@@ -1226,6 +1296,7 @@ void structDef(void) {
     printf("    movq $8, %%rdi\n");
     printf("    call malloc\n");
     printf("    movq %%rax, %%r8\n");
+  
     int selfDefined = 0;
     while(isType()){
         printf("    movq %%r8, %%rdi\n");

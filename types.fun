@@ -1,3 +1,5 @@
 fun main(){
- boolean x = true;
+ char x = '5'
+ char y = x
+ print y
 }

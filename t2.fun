@@ -1,5 +1,5 @@
 
-fun f(long a, long i, long n) {
+fun f(long a, long i,long n) {
     print a
     print i
     print n
