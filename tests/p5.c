@@ -268,18 +268,24 @@ int levenshtein(char *s1, char *s2) {
 // https://www.daniweb.com/programming/software-development/threads/41448/c-a-function-to-uppercase-a-string
 void convertToUpperCase(char *sPtr)
 {
-    while(*sPtr != '\0')
+    while(*sPtr != '\0'){
 	*sPtr = toupper((unsigned char)*sPtr);
+	sPtr = sPtr + 1;
+    }
+}
+
+void detectMispelledKeyword(char* id){
+    convertToUpperCase(id);
+    for(int i = 0; i < numTokenTypes; i++){
+	if(levenshtein(tokenStrings[i], id) < 2){
+	    fprintf(stderr, "Maybe instead of %s you meant %s\n", id, tokenStrings[i]);
+	}
+    }
 }
 
 void error_missingVariable(char* id){
-    //convertToUpperCase(id);
     fprintf(stderr, "Undeclared variable on line %d: `%s`\n", current_token->line_num, id);
-    for(int i = 0; i < numTokenTypes; i++){
-	if(levenshtein(tokenStrings[i], id) < 5){
-	    fprintf(stderr, "Maybe instead of %s you meant %s", id, tokenStrings[i]);
-	}
-    }
+    detectMispelledKeyword(id);
 }
 
 /* append a character to the id buffer */
@@ -597,7 +603,8 @@ struct token *getToken(void) {
             next_token->type = DEFINE_KWD;
         } else {
             next_token->type = ID;
-            next_token->value.id = strcpy(malloc(id_length), id_buffer);
+            next_token->value.id = strcpy(malloc(id_length+1), id_buffer);
+	    next_token->value.id[id_length] = '\0';
             if (next_char == '[') {
                 next_token->isArray = 1;
             }
