@@ -103,7 +103,7 @@ Session.vim
 *.o
 *.d
 *.out
-p4
+p5
 t0
 t1
 t2
@@ -139,3 +139,5 @@ arrayTest
 pointers
 types
 basic
+switch1
+switch2

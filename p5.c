@@ -5,6 +5,7 @@
 #define ANSI_COLOR_MAGENTA "\x1b[35m"
 #define ANSI_COLOR_CYAN    "\x1b[36m"
 #define ANSI_COLOR_RESET   "\x1b[0m"""
+#define MIN3(a, b, c) ((a) < (b) ? ((a) < (c) ? (a) : (c)) : ((b) < (c) ? (b) : (c)))
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -71,7 +72,9 @@ enum token_type {
     FALSE,
 };
 
-char* tokenStrings[46] = {"IF", "ELSE", "WHILE", "FUN", "RETURN", "PRINT", "STRUCT", "TYPE", "BELL", "DELAY", "WINDOW_START", "WINDOW_END", "PLAY", "=", "DEFINE", "==", "<", ">", "<>", "AND", "OR", "XOR", ";", ",", ".", "(", ")", "{", "}", "+", "*", "ID", "INTEGER", "USER_OP", "END", "SWITCH", "CASE","LONG", "BOOLEAN", "CHAR", "TRUE", "FALSE", ":", "?", "@", "$"};
+static int numTokenTypes = 57;
+
+char* tokenStrings[57]= {"IF", "ELSE", "WHILE", "FUN", "RETURN", "PRINT", "STRUCT", "TYPE", "BELL", "DELAY", "-", "/", "%", "REFERENCE", "DEREFERENCE", "WINDOW_START", "WINDOW_END", "PLAY", "KBLOGIC", "KBEND", "EQ", "DEFINE", "==", "<", ">", "<>", "AND", "OR", "XOR", "SEMI", "[", "]", ",", ".", "(", ")", "{", "}", "+", "*", "ID", "INTEGER", "USER_OP", "END", "SWITCH", "CASE", "BREAK", "DEFAULT", "LONG", "BOOLEAN", "CHAR", "TRUE", "FALSE", ":", "?", "@", "$"};
 
 union token_value {
     char *id;
@@ -245,8 +248,46 @@ void error(enum error_code errorCode, char* message){
     //current_token = (*current_token).next;
 }
 
+// https://en.wikibooks.org/wiki/Algorithm_Implementation/Strings/Levenshtein_distance#C
+int levenshtein(char *s1, char *s2) {
+    unsigned int s1len, s2len, x, y, lastdiag, olddiag;
+    s1len = strlen(s1);
+    s2len = strlen(s2);
+    unsigned int column[s1len+1];
+    for (y = 1; y <= s1len; y++)
+	column[y] = y;
+    for (x = 1; x <= s2len; x++) {
+	column[0] = x;
+	for (y = 1, lastdiag = x-1; y <= s1len; y++) {
+	    olddiag = column[y];
+	    column[y] = MIN3(column[y] + 1, column[y-1] + 1, lastdiag + (s1[y-1] == s2[x-1] ? 0 : 1));
+	    lastdiag = olddiag;
+	}
+    }
+    return(column[s1len]);
+}
+
+// https://www.daniweb.com/programming/software-development/threads/41448/c-a-function-to-uppercase-a-string
+void convertToUpperCase(char *sPtr)
+{
+    while(*sPtr != '\0'){
+	*sPtr = toupper((unsigned char)*sPtr);
+	sPtr = sPtr + 1;
+    }
+}
+
+void detectMispelledKeyword(char* id){
+    convertToUpperCase(id);
+    for(int i = 0; i < numTokenTypes; i++){
+	if(levenshtein(tokenStrings[i], id) < 2){
+	    fprintf(stderr, "Maybe instead of %s you meant %s\n", id, tokenStrings[i]);
+	}
+    }
+}
+
 void error_missingVariable(char* id){
     fprintf(stderr, "Undeclared variable on line %d: `%s`\n", current_token->line_num, id);
+    detectMispelledKeyword(id);
 }
 
 /* append a character to the id buffer */
@@ -570,7 +611,8 @@ struct token *getToken(void) {
             next_token->type = DEFINE_KWD;
         } else {
             next_token->type = ID;
-            next_token->value.id = strcpy(malloc(id_length), id_buffer);
+            next_token->value.id = strcpy(malloc(id_length+1), id_buffer);
+	    next_token->value.id[id_length] = '\0';
             if (next_char == '[') {
                 next_token->isArray = 1;
             }
