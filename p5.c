@@ -58,13 +58,19 @@ enum token_type {
     END,
     SWITCH,
     CASE,
+    LONG,
+    BOOLEAN,
+    CHAR,
+    TRUE,
+    FALSE,
 };
 
-char* tokenStrings[37] = {"IF", "ELSE", "WHILE", "FUN", "RETURN", "PRINT", "STRUCT", "TYPE", "BELL", "DELAY", "WINDOW_START", "WINDOW_END", "PLAY", "=", "DEFINE", "==", "<", ">", "<>", "AND", "OR", "XOR", ";", ",", ".", "(", ")", "{", "}", "+", "*", "ID", "INTEGER", "USER_OP", "END", "SWITCH", "CASE"};
+char* tokenStrings[42] = {"IF", "ELSE", "WHILE", "FUN", "RETURN", "PRINT", "STRUCT", "TYPE", "BELL", "DELAY", "WINDOW_START", "WINDOW_END", "PLAY", "=", "DEFINE", "==", "<", ">", "<>", "AND", "OR", "XOR", ";", ",", ".", "(", ")", "{", "}", "+", "*", "ID", "INTEGER", "USER_OP", "END", "SWITCH", "CASE","LONG", "BOOLEAN", "CHAR", "TRUE", "FALSE"};
 
 union token_value {
     char *id;
     uint64_t integer;
+    char character;
 };
 
 struct struct_var {
@@ -96,6 +102,14 @@ struct trie_node {
     int var_num;
     //for purposes of printing
     char ch;
+    //which type the variable is
+    int var_type;
+};
+
+struct fun_signature {
+    char *funId;
+    char **variableType;    
+    struct fun_signature *next;
 };
 
 //used to store user operators, their symbols, and the expressions they represent
@@ -120,6 +134,8 @@ static struct token *current_token;
 
 static struct trie_node *global_root_ptr;
 
+//static struct fun_signature *signature_head;
+
 static unsigned int if_count = 0;
 static unsigned int while_count = 0;
 static unsigned int window_count = 0;
@@ -136,6 +152,7 @@ static char **definedTypes;
 static int definedTypeCount = 0;
 static int definedTypeResize = 10;
 static int standardTypeCount = 0;
+static int variableType = 2;
 /*static int perform = 1;*/
 //static char *op_not_allowed = "_+*{}()|&^=<>,;\n\t\r"; //stores characters that can't be user operators
 static struct user_operator* user_ops; //stores linked list of user operators
@@ -225,7 +242,9 @@ void addType(char* typeName){
     definedTypes[definedTypeCount - 1] = strdup(typeName);
 }
 
-void addStandardTypes(){
+void addStandardTypes() {
+    addType("boolean");
+    addType("char");
     addType("long");
     standardTypeCount = definedTypeCount;
 }
@@ -247,7 +266,7 @@ int isStructType(){
 
 //Since a type system doesn't quite exist yet, all struct variables have to start with stru
 int isVarStruct(char* name){
-    return name[0] == 's' && name[1] == 't' && name[2] == 'r' && name[3] =='u';	
+    return name[0] == 's' && name[1] == 't' && name[2] == 'r' && name[3] =='u';
 }
 
 //figures out what index a certain variable is in a struct
@@ -274,6 +293,15 @@ int isTypeName(char* possibleTypeName){
         }
     }
     return 0;
+}
+
+int findVarType(char* possibleTypeName) {
+    for(int i = 0; i < definedTypeCount; i++){
+        if(strcmp(possibleTypeName, definedTypes[i]) == 0){
+            return i;
+        }
+    }
+    return -1;
 }
 
 /* returns true if the given character can be part of an id, false otherwise */
@@ -435,6 +463,15 @@ struct token *getToken(void) {
     } else if (next_char == '$') {
         next_char = getchar();
         next_token->type = DEREFERENCE;
+    } else if (next_char == '\'') {
+        next_char = getchar();
+        next_token->type = CHAR;
+        next_token->value.character = next_char;
+        next_char = getchar();
+        if (next_char != '\'') {
+            error(GENERAL, "invalid character");
+        }
+        next_char = getchar();
     } else if (isdigit(next_char)) {
         next_token->type = INTEGER;
         next_token->value.integer = 0;
@@ -479,9 +516,13 @@ struct token *getToken(void) {
             next_token->type = STRUCT_KWD;
         } else if (strcmp(id_buffer, "switch") == 0){
             next_token->type = SWITCH;
-        }  else if (strcmp(id_buffer, "case") == 0){
+        } else if (strcmp(id_buffer, "case") == 0){
             next_token->type = CASE;
-        } else if (isTypeName(id_buffer)) {
+        } else if (strcmp(id_buffer, "true") == 0) {
+            next_token->type = TRUE;
+        } else if (strcmp(id_buffer, "false") == 0) {
+            next_token->type = FALSE;
+        }else if (isTypeName(id_buffer)) {
             next_token->type = TYPE_KWD;
             next_token->value.id = strdup(id_buffer);
         } else if (strcmp(id_buffer, "define") == 0) {
@@ -663,6 +704,17 @@ int isEnd() {
     return current_token->type == END;
 }
 
+int isTrue() {
+    return current_token->type == TRUE;
+}
+int isFalse() {
+    return current_token->type == FALSE;
+}
+
+int isChar() {
+    return current_token-> type == CHAR;
+}
+
 int isId() {
     return current_token->type == ID;
 }
@@ -695,6 +747,11 @@ uint64_t getInt() {
     return current_token->value.integer;
 }
 
+uint64_t getChar() {
+    return current_token->value.character;
+}
+
+
 void freeTrie(struct trie_node *node_ptr) {
     if (node_ptr == 0) {
         return;
@@ -703,6 +760,22 @@ void freeTrie(struct trie_node *node_ptr) {
         freeTrie(node_ptr->children[child_num]);
     }
     free(node_ptr);
+}
+
+int getVarType(char *id, struct trie_node *node_ptr) {
+    for (char* ch_ptr = id; *ch_ptr != 0; ch_ptr++) {
+        int child_num;
+        if (isdigit(*ch_ptr)) {
+            child_num = *ch_ptr - '0';
+        } else {
+            child_num = *ch_ptr - 'a' + 10;
+        }
+        if (node_ptr->children[child_num] == 0) {
+            return -1;
+        }
+        node_ptr = node_ptr->children[child_num];
+    }
+    return node_ptr->var_type;
 }
 
 int getVarNum(char *id, struct trie_node *node_ptr) {
@@ -721,29 +794,9 @@ int getVarNum(char *id, struct trie_node *node_ptr) {
     return node_ptr->var_num;
 }
 
-//A copy of the function above except it returns the type.
-/*
-   int getVarType(char *id, struct trie_node *node_ptr) {
-   for (char* ch_ptr = id; *ch_ptr != 0; ch_ptr++) {
-   int child_num;
-   if (isdigit(*ch_ptr)) {
-   child_num = *ch_ptr - '0';
-   } else {
-   child_num = *ch_ptr - 'a' + 10;
-   }
-   if (node_ptr->children[child_num] == 0) {
-   return 0;
-   }
-   node_ptr = node_ptr->children[child_num];
-   }
-   return node_ptr->type
-   }*/
-//Placeholder until a type system exists and we can then switch to the one above, will say any variable is the first struct type
-int getVarType(char *id, struct trie_node *node_ptr) {
-    return standardTypeCount;
-}
 
-void setVarNum(char *id, struct trie_node *node_ptr, int var_num) {
+
+void setVarNum(char *id, struct trie_node *node_ptr, int var_num, int varType) {
     for (char* ch_ptr = id; *ch_ptr != 0; ch_ptr++) {
         int child_num;
         if (isdigit(*ch_ptr)) {
@@ -755,6 +808,7 @@ void setVarNum(char *id, struct trie_node *node_ptr, int var_num) {
             struct trie_node *new_node_ptr = calloc(1, sizeof(struct trie_node));
             new_node_ptr->parent = node_ptr;
             new_node_ptr->ch = *ch_ptr;
+            new_node_ptr->var_type = varType;
             node_ptr->children[child_num] = new_node_ptr;
         }
         node_ptr = node_ptr->children[child_num];
@@ -769,7 +823,7 @@ void getArr(char *id, struct trie_node *local_root_ptr, int arrIndex) {
     printf("    push %%r15\n");
     switch (var_num) {
         case 0:
-            setVarNum(id, global_root_ptr, 1);
+            setVarNum(id, global_root_ptr, 1, 2);
             printf("    mov %s_var,%%r15\n", id);
             break;
         default:
@@ -822,13 +876,13 @@ void get(char *id, struct trie_node *local_root_ptr, char *instruction) {
   }
   */
 /* prints instructions to set the value of the variable to the value of %rax */
-void set(char *id, struct trie_node *local_root_ptr) {
+void set(char *id, struct trie_node *local_root_ptr, int varType) {
     int var_num = getVarNum(id, local_root_ptr);
     switch (var_num) {
         case 0:
             //check global, if not there, error
             if (getVarNum(id, global_root_ptr)) {
-                setVarNum(id, global_root_ptr, 1);
+                setVarNum(id, global_root_ptr, 1, varType);
                 printf("    mov %%rax,%s_var\n", id);
             } else {
                 error_missingVariable(id);
@@ -882,6 +936,57 @@ void e1(struct trie_node *local_root_ptr, int perform) {
             error(PAREN_MISMATCH, "unclosed parenthesis expression");
         }
         consume();
+    } else if(variableType == 0) { //boolean value
+        if(isTrue()) {
+            if (perform) {
+                printf("   mov $1, %%r12\n");
+            }
+            consume();
+        } else if(isFalse()) {
+            if (perform) {
+                printf("   mov $0, %%r12\n");
+            }
+            consume();
+        } else if (isId()) {
+            char *id = getId();
+            consume();
+            int varType = getVarType(id, local_root_ptr);
+            if(varType == 0) {
+                if (perform) {
+                    get(id, local_root_ptr, "mov");
+                    printf("    mov %%rax,%%r12\n");
+                }      
+            } else if(perform) {
+                error(GENERAL, "Given variable is not a boolean");
+            }
+        } else {
+            error(GENERAL, "Type mismatch, expecting boolean");
+        }
+        variableType = 2;
+    } else if (variableType == 1) {
+        if (isChar()) {
+            if(perform){
+                uint64_t v = getChar();
+                printf("    mov $%" PRIu64 ",%%r12\n", v);
+            }
+            consume();
+
+        } else if (isId()) {
+            char *id = getId();
+            consume();
+            int varType = getVarType(id, local_root_ptr);
+            if(varType == 1) {
+                if (perform) {
+                    get(id, local_root_ptr, "mov");
+                    printf("    mov %%rax,%%r12\n");
+                }
+            } else if(perform) {
+                error(GENERAL, "Given variable is not a char");
+            }
+        } else if(perform) {
+            error(GENERAL, "Type mismatch, expecting char");
+        }
+        variableType = 2;
     } else if (isInt()) {
         if(perform){
             uint64_t v = getInt();
@@ -1183,6 +1288,7 @@ int getLeftSideVariable(struct trie_node *local_root_ptr, char* id, int isArr, i
                 error(GENERAL, "expected ] after array variable");
             }
         }
+
         consume(); // consume ]
         if (perform) {
             if (isLeftBracket()) {
@@ -1252,8 +1358,8 @@ void makeArraySpace(char* id, struct trie_node *local_root_ptr, int isInner, int
         printf("    mov $%lu, %%rdi\n", 8*size);
         printf("    call malloc\n");
         if (!isInner) {
-            setVarNum(id, local_root_ptr, local_var_num--);
-            set(id, local_root_ptr);
+            setVarNum(id, local_root_ptr, local_var_num--, 2);
+            set(id, local_root_ptr, 2);
         }
         else {
             setAddress();
@@ -1301,17 +1407,20 @@ int statement(struct trie_node *local_root_ptr, int perform) {
             error(GENERAL, "Expected =\n");
         }
         consume();
+        int whichType = getVarType(id, local_root_ptr);
+        variableType = whichType;
         expression(local_root_ptr, perform);
         if (perform) {
             if (isArr || overrideSet) {
                 setAddress();
             } else {
-                set(id, local_root_ptr);
+                set(id, local_root_ptr, whichType);
             }
         }
         if (isSemi()) {
             consume();
         }
+        variableType = 2;
         printf("    pop %%r9\n");
         printf("    pop %%r8\n");
         return 1;
@@ -1326,7 +1435,7 @@ int statement(struct trie_node *local_root_ptr, int perform) {
         if(!isId()){
             error(GENERAL, "expected identifier after type name");
         }
-        char* id = getId();
+        char *id = getId();
         if(perform && isStruct){
             printf("    call %s_struct\n", typeName);
         }
@@ -1341,24 +1450,27 @@ int statement(struct trie_node *local_root_ptr, int perform) {
             return 1;
         }
         consume();
+        int whichVar = findVarType(typeName);
+        variableType = whichVar;
         if (isEq()) {
             consume();
             if (perform) {
-                setVarNum(id, local_root_ptr, local_var_num--);
+                setVarNum(id, local_root_ptr, local_var_num--, whichVar);
             }
             expression(local_root_ptr, perform);
             if (perform) {
-                set(id, local_root_ptr);
+                set(id, local_root_ptr, whichVar);
             }
         } else {
             if (isSemi()) {
                 consume();
             }
             if (perform) {
-                setVarNum(id, local_root_ptr, local_var_num--);
-                set(id, local_root_ptr);
+                setVarNum(id, local_root_ptr, local_var_num--, whichVar);
+                set(id, local_root_ptr, whichVar);
             }
         }
+        variableType = 2;
         printf("    pop %%r9\n");
         printf("    pop %%r8\n");
         return 1;
@@ -1593,12 +1705,18 @@ void function(void) {
     int var_num = 2;
     local_var_num = -1;
     while (!isRight()) {
+        if(!isType()) {
+            error(GENERAL, "expected type declaration");
+        }
+        char* typeName = current_token->value.id;
+        int whichType = findVarType(typeName);
+        consume();
         if (!isId()) {
             error(GENERAL, "Invalid parameter name\n");
         }
         char *param_id = getId();
         consume();
-        setVarNum(param_id, local_root_ptr, var_num++);
+        setVarNum(param_id, local_root_ptr, var_num++, whichType);
         free(param_id);
         if (isComma()) {
             consume();
@@ -1657,6 +1775,7 @@ void structDef(void) {
     printf("    movq $8, %%rdi\n");
     printf("    call malloc\n");
     printf("    movq %%rax, %%r8\n");
+
     int selfDefined = 0;
     while(isType()){
         printf("    movq %%r8, %%rdi\n");
@@ -1684,7 +1803,7 @@ void structDef(void) {
             error(GENERAL, "Recursive struct definitions disallowed\n");
         }
         if(!isId()){
-            error(GENERAL, "Expected identifier after type in struct definition\n");
+            error(GENERAL, "expected identifier after type in struct definition\n");
         }
         char* var_name = current_token->value.id;
         struct_info[struct_count].type_count++;
@@ -1714,12 +1833,15 @@ void structDef(void) {
     }
     struct_count++;
     consume();
+
 }
 
 void globalVarDef(void) {
     if (!isType()) {
         error(GENERAL, "Expected global variable type declaration\n");
     }
+    char* typeName = current_token->value.id;
+    int whichType = findVarType(typeName);
     int isStruct = isStructType();
     consume();
     if (!isId()) {
@@ -1727,17 +1849,17 @@ void globalVarDef(void) {
     }
     char *id = getId();
     consume();
-    setVarNum(id, global_root_ptr, 1);
+    setVarNum(id, global_root_ptr, 1, whichType);
     printf("global_%d:\n", num_global_vars++);
     struct trie_node *local_root_ptr = calloc(1, sizeof(struct trie_node));
     if (isEq()) {
         consume();
         expression(local_root_ptr, 1);
-        set(id, local_root_ptr);
+        set(id, local_root_ptr, whichType);
     }
     if (isStruct) {
         printf("    call %s_struct\n", id);
-        set(id, local_root_ptr);
+        set(id, local_root_ptr, whichType);
     }
     printf("    jmp global_%d\n", num_global_vars);
     if (isSemi()) {
