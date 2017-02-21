@@ -1930,8 +1930,9 @@ void compile(void) {
     printf("    .global main\n");
     printf("main:\n");
     printf("    sub $8,%%rsp\n");
-    printf("    mov $201,%%rax\n");
-    printf("    syscall\n");
+    printf("    rdtsc\n");
+    printf("    shr $32,%%rdx\n");
+    printf("    or %%rdx,%%rax\n");
     printf("    mov %%rax,rand_seed\n");
     printf("    call global_0\n");
     printf("    call main_fun\n");
