@@ -25,7 +25,7 @@ Once you have done some things that work:
 
 - Make sure that you have incorporated the latest version of `master` into your branch.
 - Switch to the master branch using `git checkout master`.
-- Add your changes to master by using `git merge master`.
+- Add your changes to master by using `git merge <your branch name>`.
 - Use `git push` to push the changes to the repository.
 - If you are going to add more changes, switch back to your branch.
 
@@ -61,11 +61,5 @@ If anyone cares to maintain the style of my original code:
   - `e2` places its result in %r13 and may modify %r12.
   - `e1` places its result in %r12.
 - Function Calls
-  - Parameter 1 is passed in %rdi.
-  - Parameter 2 is passed in %rsi.
-  - Parameter 3 is passed in %rdx.
-  - Parameter 4 is passed in %rcx.
-  - Parameter 5 is passed in %r8.
-  - Parameter 6 is passed in %r9.
-  - Parameters 7+ are located on the top of the stack in reverse order before the function is called (parameter 7 is at %rsp, parameter 8 is at %rsp + 8, and so on before the function is called).
+  - Parameters are located on the top of the stack in reverse order before the function is called (parameter 1 is at %rsp, parameter 2 is at %rsp + 8, and so on before the function is called).
   - At the beginning of each function call, the original value of %rbp will be stored, and %rbp will be set to the address of the old %rbp (the address after the return value; if parameter 7 exists it will be located at %rbp + 16). %rbp is restored at the end of the function call.
