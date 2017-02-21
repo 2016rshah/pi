@@ -1,5 +1,5 @@
 
-fun f(a,i,n) {
+fun f(long a, long i,long n) {
     print a
     print i
     print n
@@ -7,7 +7,7 @@ fun f(a,i,n) {
     return f(a * i, i+1, n)
 }
 
-fun factorial(n) return f(1,1,n)
+fun factorial(long n) return f(1,1,n)
 
 fun main() {
     print factorial(5)
