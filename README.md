@@ -25,6 +25,11 @@ After someone else does something, you may want to incorporate that into your br
 - Use `git push origin master` to finish off :smile:
 - If you are going to add more changes, switch back to your branch.
 
+
+##Adding/Removing/Editing tests
+
+The test can be found in their own directory. Basically, you make changes to the code in the p5.c file in the main directory, but edit tests in the test directory. Then, you can run `make clean test` from the main directory and everything will get synced up and run. Message me if you have any questions/I didn't explain this well enough. 
+
 #Guidelines:
 
 ##General
