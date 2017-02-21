@@ -800,18 +800,25 @@ void e1(struct trie_node *local_root_ptr, int perform) {
             consume(); // consume ]
             while (isLeftBracket()) {
                 consume(); // consume [
-                if (!isInt()) {
-                    error(GENERAL, "expected number index after [");
+                int arrIndex = 0;
+                if (perform) {
+                    if (!isInt()) {
+                        error(GENERAL, "expected number index after [");
+                    }
+                    arrIndex = getInt();
                 }
-                int arrIndex = getInt();
                 consume(); // consume int
-                printf("    mov %d(%%rax), %%rax\n", arrIndex*8);
-                if (!isRightBracket()) {
-                    error(GENERAL, "expected ] after array variable");
+                if (perform) {
+                    printf("    mov %d(%%rax), %%rax\n", arrIndex*8);
+                    if (!isRightBracket()) {
+                        error(GENERAL, "expected ] after array variable");
+                    }
                 }
                 consume(); // consume ]
             }
-            printf("    mov (%%rax), %%rax\n");
+            if (perform) {
+                printf("    mov (%%rax), %%rax\n");
+            }
         } else {
             if (perform) {
                 get(id, local_root_ptr);
