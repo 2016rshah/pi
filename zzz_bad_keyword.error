@@ -1,0 +1,7 @@
+fun a(x){
+    return y;
+}
+
+fun main(){
+    print a(1);
+}
