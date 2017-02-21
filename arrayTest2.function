@@ -1,5 +1,0 @@
-fun main() {
-    #long array[3][5];
-    #array[1][2] = 7;
-    #print array[1][2];
-}
