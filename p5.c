@@ -1930,6 +1930,9 @@ void compile(void) {
     printf("    .global main\n");
     printf("main:\n");
     printf("    sub $8,%%rsp\n");
+    printf("    mov $201,%%rax\n");
+    printf("    syscall\n");
+    printf("    mov %%rax,rand_seed\n");
     printf("    call global_0\n");
     printf("    call main_fun\n");
     printf("    mov $0,%%rax\n");
@@ -1979,6 +1982,19 @@ void compile(void) {
     printf("    call bg_drawngon\n");
     printf("    pop %%r8\n");
     printf("    ret\n");
+    printf("random_fun:");
+    printf("    mov rand_seed,%%rax\n");
+    printf("    mov %%rax,%%rdi\n");
+    printf("    shl $21,%%rdi\n");
+    printf("    xor %%rdi,%%rax\n");
+    printf("    mov %%rax,%%rdi\n");
+    printf("    shr $35,%%rdi\n");
+    printf("    xor %%rdi,%%rax\n");
+    printf("    mov %%rax,%%rdi\n");
+    printf("    shl $4,%%rdi\n");
+    printf("    xor %%rdi,%%rax\n");
+    printf("    mov %%rax,rand_seed\n");
+    printf("    ret\n");
     printf("//END STANDARD FUNCTIONS BLOCK\n");
 
     //Standard types are defined before token parsing since this knowledge is needed to know if a token is a type token
@@ -2014,6 +2030,8 @@ void compile(void) {
     printf("    .string \"Potato, the Epic Window\"\n");
     printf("rbp_store:\n");
     printf("    .quad 0\n");
+    printf("rand_seed:\n");
+    printf("    .quad 10\n");
     initVars(global_root_ptr);
 
     free(id_buffer);
