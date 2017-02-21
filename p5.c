@@ -768,7 +768,8 @@ void freeTrie(struct trie_node *node_ptr) {
     free(node_ptr);
 }
 
-int getVarType(char *id, struct trie_node *node_ptr) {
+//If you don't know what you're doing keep the dummy method
+/*int getVarType(char *id, struct trie_node *node_ptr) {
     for (char* ch_ptr = id; *ch_ptr != 0; ch_ptr++) {
         int child_num;
         if (isdigit(*ch_ptr)) {
@@ -782,6 +783,10 @@ int getVarType(char *id, struct trie_node *node_ptr) {
         node_ptr = node_ptr->children[child_num];
     }
     return node_ptr->var_type;
+}*/
+
+int getVarType(char *id, struct trie_node *node_ptr) {
+    return standardTypeCount;
 }
 
 int getVarNum(char *id, struct trie_node *node_ptr) {
@@ -1302,7 +1307,7 @@ int getLeftSideVariable(struct trie_node *local_root_ptr, char* id, int isArr, i
         consume(); // consume ]
         if (perform) {
             if (isLeftBracket()) {
-                printf("    mov (%%rax), %%rax\n");
+                printf("    mov (%%rax), %%rax//pls no\n");
             }
         }
         while (isLeftBracket()) {
@@ -1857,14 +1862,12 @@ void structDef(void) {
     printf("    movq %%r8, %%rax\n");
     printf("    pop %%r8\n");
     printf("    ret\n");
-    /*
        for(int i = 0; i < struct_count + 1; i++){
        fprintf(stderr, "struct %d exists\n", struct_info[i].id);
        for(int j = 0; j < struct_info[struct_count].type_count; j++){
        fprintf(stderr, "   %s is type %d\n", struct_info[i].data[j].name, struct_info[i].data[j].type);
        }
        }
-       */
     if (!isRightBlock()) {
         error(BRACKET_MISMATCH, "Unexpected token found before struct closed\n");
     }
