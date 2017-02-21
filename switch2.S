@@ -2,6 +2,10 @@
     .global main
 main:
     sub $8,%rsp
+    rdtsc
+    shr $32,%rdx
+    or %rdx,%rax
+    mov %rax,rand_seed
     call global_0
     call main_fun
     mov $0,%rax
@@ -42,22 +46,53 @@ endpolygon_fun:
     call bg_endpolygon
     pop %r8
     ret
+drawngon_fun:
+    push %r8
+    movq 16(%rsp), %rdi
+    movq 24(%rsp), %rsi
+    movq 32(%rsp), %rdx
+    movq 40(%rsp), %rcx
+    call bg_drawngon
+    pop %r8
+    ret
+random_fun:    mov rand_seed,%rax
+    mov %rax,%rdi
+    shl $21,%rdi
+    xor %rdi,%rax
+    mov %rax,%rdi
+    shr $35,%rdi
+    xor %rdi,%rax
+    mov %rax,%rdi
+    shl $4,%rdi
+    xor %rdi,%rax
+    mov %rax,rand_seed
+    ret
 //END STANDARD FUNCTIONS BLOCK
 main_fun:
     push %rbp
     mov %rsp,%rbp
+    push %r8
+    push %r9
+    pop %r9
+    pop %r8
+    push %r8
+    push %r9
+    pop %r9
+    pop %r8
     subq $16,%rsp
+    push %r8
+    push %r9
     push %r12
     push %r13
     push %r14
     push %r15
-	push %rbx
+    push %rbx
     sub $8,%rsp
     push %r12
     push %r13
     push %r14
     push %r15
-	push %rbx
+    push %rbx
     sub $8,%rsp
     mov $2,%r12
     mov %r12,%r13
@@ -74,7 +109,7 @@ main_fun:
     mov %r15,%rbx
     mov %rbx,%rax
     add $8,%rsp
-	pop %rbx
+    pop %rbx
     pop %r15
     pop %r14
     pop %r13
@@ -86,23 +121,27 @@ main_fun:
     mov %r15,%rbx
     mov %rbx,%rax
     add $8,%rsp
-	pop %rbx
+    pop %rbx
     pop %r15
     pop %r14
     pop %r13
     pop %r12
     mov %rax,-8(%rbp)
+    pop %r9
+    pop %r8
+    push %r8
+    push %r9
     push %r12
     push %r13
     push %r14
     push %r15
-	push %rbx
+    push %rbx
     sub $8,%rsp
     push %r12
     push %r13
     push %r14
     push %r15
-	push %rbx
+    push %rbx
     sub $8,%rsp
     mov $2,%r12
     mov %r12,%r13
@@ -114,7 +153,7 @@ main_fun:
     mov %r15,%rbx
     mov %rbx,%rax
     add $8,%rsp
-	pop %rbx
+    pop %rbx
     pop %r15
     pop %r14
     pop %r13
@@ -131,23 +170,25 @@ main_fun:
     mov %r15,%rbx
     mov %rbx,%rax
     add $8,%rsp
-	pop %rbx
+    pop %rbx
     pop %r15
     pop %r14
     pop %r13
     pop %r12
     mov %rax,-16(%rbp)
+    pop %r9
+    pop %r8
     push %r12
     push %r13
     push %r14
     push %r15
-	push %rbx
+    push %rbx
     sub $8,%rsp
     push %r12
     push %r13
     push %r14
     push %r15
-	push %rbx
+    push %rbx
     sub $8,%rsp
     mov -8(%rbp),%rax
     mov %rax,%r12
@@ -157,7 +198,7 @@ main_fun:
     mov %r15,%rbx
     mov %rbx,%rax
     add $8,%rsp
-	pop %rbx
+    pop %rbx
     pop %r15
     pop %r14
     pop %r13
@@ -169,7 +210,7 @@ main_fun:
     mov %r15,%rbx
     mov %rbx,%rax
     add $8,%rsp
-	pop %rbx
+    pop %rbx
     pop %r15
     pop %r14
     pop %r13
@@ -192,7 +233,7 @@ main_fun:
     push %r13
     push %r14
     push %r15
-	push %rbx
+    push %rbx
     sub $8,%rsp
     mov -8(%rbp),%rax
     mov %rax,%r12
@@ -202,7 +243,7 @@ main_fun:
     mov %r15,%rbx
     mov %rbx,%rax
     add $8,%rsp
-	pop %rbx
+    pop %rbx
     pop %r15
     pop %r14
     pop %r13
@@ -214,13 +255,13 @@ main_fun:
     push %r13
     push %r14
     push %r15
-	push %rbx
+    push %rbx
     sub $8,%rsp
     push %r12
     push %r13
     push %r14
     push %r15
-	push %rbx
+    push %rbx
     sub $8,%rsp
     mov -16(%rbp),%rax
     mov %rax,%r12
@@ -230,7 +271,7 @@ main_fun:
     mov %r15,%rbx
     mov %rbx,%rax
     add $8,%rsp
-	pop %rbx
+    pop %rbx
     pop %r15
     pop %r14
     pop %r13
@@ -242,14 +283,12 @@ main_fun:
     mov %r15,%rbx
     mov %rbx,%rax
     add $8,%rsp
-	pop %rbx
+    pop %rbx
     pop %r15
     pop %r14
     pop %r13
     pop %r12
     subq $24, %rax
-    cmpq $51, %rax
-    je .1SW2
 .data
 .SW1:
   .quad    .1SW0
@@ -313,7 +352,7 @@ main_fun:
     push %r13
     push %r14
     push %r15
-	push %rbx
+    push %rbx
     sub $8,%rsp
     mov $5,%r12
     mov %r12,%r13
@@ -322,7 +361,7 @@ main_fun:
     mov %r15,%rbx
     mov %rbx,%rax
     add $8,%rsp
-	pop %rbx
+    pop %rbx
     pop %r15
     pop %r14
     pop %r13
@@ -336,7 +375,7 @@ main_fun:
     push %r13
     push %r14
     push %r15
-	push %rbx
+    push %rbx
     sub $8,%rsp
     mov -16(%rbp),%rax
     mov %rax,%r12
@@ -346,7 +385,7 @@ main_fun:
     mov %r15,%rbx
     mov %rbx,%rax
     add $8,%rsp
-	pop %rbx
+    pop %rbx
     pop %r15
     pop %r14
     pop %r13
@@ -365,13 +404,13 @@ main_fun:
     push %r13
     push %r14
     push %r15
-	push %rbx
+    push %rbx
     sub $8,%rsp
     push %r12
     push %r13
     push %r14
     push %r15
-	push %rbx
+    push %rbx
     sub $8,%rsp
     mov -16(%rbp),%rax
     mov %rax,%r12
@@ -381,7 +420,7 @@ main_fun:
     mov %r15,%rbx
     mov %rbx,%rax
     add $8,%rsp
-	pop %rbx
+    pop %rbx
     pop %r15
     pop %r14
     pop %r13
@@ -393,7 +432,7 @@ main_fun:
     mov %r15,%rbx
     mov %rbx,%rax
     add $8,%rsp
-	pop %rbx
+    pop %rbx
     pop %r15
     pop %r14
     pop %r13
@@ -416,7 +455,7 @@ main_fun:
     push %r13
     push %r14
     push %r15
-	push %rbx
+    push %rbx
     sub $8,%rsp
     mov -16(%rbp),%rax
     mov %rax,%r12
@@ -426,7 +465,7 @@ main_fun:
     mov %r15,%rbx
     mov %rbx,%rax
     add $8,%rsp
-	pop %rbx
+    pop %rbx
     pop %r15
     pop %r14
     pop %r13
@@ -441,7 +480,7 @@ main_fun:
     push %r13
     push %r14
     push %r15
-	push %rbx
+    push %rbx
     sub $8,%rsp
     mov $15,%r12
     mov %r12,%r13
@@ -450,7 +489,7 @@ main_fun:
     mov %r15,%rbx
     mov %rbx,%rax
     add $8,%rsp
-	pop %rbx
+    pop %rbx
     pop %r15
     pop %r14
     pop %r13
@@ -464,7 +503,7 @@ main_fun:
     push %r13
     push %r14
     push %r15
-	push %rbx
+    push %rbx
     sub $8,%rsp
     mov $21,%r12
     mov %r12,%r13
@@ -473,7 +512,7 @@ main_fun:
     mov %r15,%rbx
     mov %rbx,%rax
     add $8,%rsp
-	pop %rbx
+    pop %rbx
     pop %r15
     pop %r14
     pop %r13
@@ -499,3 +538,7 @@ ineedazero:
     .quad 0
 windowtitle:
     .string "Potato, the Epic Window"
+rbp_store:
+    .quad 0
+rand_seed:
+    .quad 10
