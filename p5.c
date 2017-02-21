@@ -1740,6 +1740,14 @@ int statement(struct trie_node *local_root_ptr, int perform) {
          }
          printf("    subq $%lu, %%rax\n", switenhead->value);
          uint64_t lowest = switenhead->value;
+         struct swit_entry * checklarge = switenhead;
+         while(checklarge != NULL){
+            if(checklarge->value - lowest > 50){
+              printf("    cmpq $%lu, %%rax\n", checklarge->value - lowest);
+              printf("    je .%dSW%d\n", checklarge->switchnum, checklarge->casecount);
+            }
+            checklarge = checklarge->next;
+         }
          printf(".data\n");
          printf(".SW%d:\n", switch_count);
          struct swit_entry *cur = switenhead;
@@ -1760,13 +1768,13 @@ int statement(struct trie_node *local_root_ptr, int perform) {
          }
         switenhead = NULL;
         printf(".text\n");
-        printf("    cmpq $%lu, %%rax", currentval - lowest);
+        printf("    cmpq $%lu, %%rax\n", currentval - lowest);
         printf("    ja  .%dSWDEF\n", switch_count);
         printf("    jmp  *.SW%d(,%%rax, 8)\n", switch_count);
         int locswitch_count = switch_count;
         switch_count++;
         statement(local_root_ptr, 1);
-        printf(" ESW%d\n", locswitch_count);
+        printf(" ESW%d:\n", locswitch_count);
        }
        return 1;
     } else if(isCase() || isDefault()){
@@ -1775,6 +1783,9 @@ int statement(struct trie_node *local_root_ptr, int perform) {
            if(isCase()){
              caseflag++;
              consume();
+             if(!isInt()){
+                error(GENERAL, "Missing number for a case");
+             }
              uint64_t casenum = getInt();
              consume();
              struct swit_entry * curent = malloc(sizeof(struct swit_entry));
@@ -1784,6 +1795,7 @@ int statement(struct trie_node *local_root_ptr, int perform) {
              curent->switchnum = switch_count;
              curtok->casecount = case_count;
              curtok->switchnum = switch_count;
+             case_count++;
              if(switenhead == NULL){
                 switenhead = curent;
                 curent->next = NULL;
@@ -1798,7 +1810,8 @@ int statement(struct trie_node *local_root_ptr, int perform) {
                     break;
                  }
                }
-              if(curentins->value == curent->value){
+           
+              if(curentins != NULL && curentins->value == curent->value){
                 error(GENERAL, "Two identical cases");
               }
               if(curentinsprev == NULL){
@@ -1809,6 +1822,7 @@ int statement(struct trie_node *local_root_ptr, int perform) {
                 curentinsprev->next = curent;
                 curent->next = curentins;
               }
+          }
               if(swithead == NULL){
                  swithead = curtok;
                  switinsert = curtok;
@@ -1827,7 +1841,7 @@ int statement(struct trie_node *local_root_ptr, int perform) {
                 }
               }
              }
-           }
+
            if(isDefault()){
              defaultflag++;
              consume();
@@ -1873,6 +1887,9 @@ int statement(struct trie_node *local_root_ptr, int perform) {
              consume();
            }
            int locswitchnum = swithead->switchnum;
+           if(switinsert == swithead){
+            switinsert = switinsert->next;
+           }
            swithead = swithead->next;
            while(!isCase() && !isBreak() && !isRightBlock()){
             statement(local_root_ptr, 1);
@@ -1922,6 +1939,9 @@ int statement(struct trie_node *local_root_ptr, int perform) {
         if(perform != 0) {
             printf("	call play\n");
         }
+        consume();
+        return 1;
+    } else if (isBreak())
         consume();
         return 1;
     } else {
