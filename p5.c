@@ -60,16 +60,13 @@ enum token_type {
     END,
     SWITCH,
     CASE,
-<<<<<<< HEAD
     BREAK,
-    DEFAULT
-=======
+    DEFAULT,
     LONG,
     BOOLEAN,
     CHAR,
     TRUE,
     FALSE,
->>>>>>> 378a0688b0ec615314b698c1d72c58b0c6ea826d
 };
 
 char* tokenStrings[42] = {"IF", "ELSE", "WHILE", "FUN", "RETURN", "PRINT", "STRUCT", "TYPE", "BELL", "DELAY", "WINDOW_START", "WINDOW_END", "PLAY", "=", "DEFINE", "==", "<", ">", "<>", "AND", "OR", "XOR", ";", ",", ".", "(", ")", "{", "}", "+", "*", "ID", "INTEGER", "USER_OP", "END", "SWITCH", "CASE","LONG", "BOOLEAN", "CHAR", "TRUE", "FALSE"};
