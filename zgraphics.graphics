@@ -1,0 +1,20 @@
+long x = 0;
+long qq = 0;
+long pixelscale = 10000;
+fun main(){
+startwindow 500 500
+qq = setcolor(255, 0, 0);
+qq = drawrect(1000000, 1000000, 300000, 300000);
+qq = setcolor(0, 255, 0);
+qq = drawrect(2000000, 1000000, 300000, 300000);
+qq = setcolor(0, 0, 255);
+qq = drawrect(3000000, 1000000, 300000, 300000);
+qq = setcolor(255, 255, 255);
+qq = startpolygon();
+qq = addpoint(pixelscale * 400, pixelscale * 400);
+qq = addpoint(pixelscale * 250, pixelscale * 250);
+qq = addpoint(pixelscale * 400, pixelscale * 250);
+qq = endpolygon();
+x = x + 20;
+endwindow
+}
