@@ -134,3 +134,6 @@ zzz_bad_brackets
 
 bool
 play
+
+global
+zzz_bad_keyword
