@@ -101,6 +101,9 @@ fun main(){
         if(xdir == 0){
             xspeed = xspeed + 20;
             yspeed = yspeed + 2;
+            r = random() % 64;
+            g = 0;
+            b = random() % 64 + 192;
         }
         xdir = 1;
     }
@@ -115,6 +118,9 @@ fun main(){
         if(xdir == 1){
             xspeed = xspeed + 20;
             yspeed = yspeed + 2;
+            r = random() % 64 + 192;
+            g = 0;
+            b = random() % 64;
         }
         xdir = 0;
     }
@@ -132,9 +138,9 @@ fun main(){
     qq = drawrect(680 * pixelsize, rpaddle - (50 * pixelsize), 20 * pixelsize, 100 * pixelsize);
     qq = drawngon(x, y, 8 * pixelsize, 10);
     if(count > 10000){
-        r = random() % 64 + 192;
-        g = random() % 64 + 192;
-        b = random() % 64 + 192;
+        #r = random() % 64 + 192;
+        #g = random() % 64 + 192;
+        #b = random() % 64 + 192;
         shape = (random() % 10) + 3;
         count = 0;
     }

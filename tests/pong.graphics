@@ -55,12 +55,13 @@ fun main(){
     if(isa){
         lpaddle = lpaddle - 200;
     }
-    if(iso){
-        rpaddle = rpaddle + 200;
-    }
-    if(isl){
-        rpaddle = rpaddle - 200;
-    }
+    #if(iso){
+    #    rpaddle = rpaddle + 200;
+    #}
+    #if(isl){
+    #    rpaddle = rpaddle - 200;
+    #}
+    rpaddle = y;
     if(rpaddle < 50 * pixelsize) {
         rpaddle = 50 * pixelsize;
     }
