@@ -151,6 +151,8 @@ struct user_operator {
     char *var2;
 };
 
+int getVarType(char*);
+
 static jmp_buf escape;
 
 static char *id_buffer;
@@ -189,6 +191,7 @@ static int definedTypeResize = 10;
 static int standardTypeCount = 0;
 static int variableType = 2;
 static int struct_decode_type = 0;
+static int struct_decode_type_np = 0;
 /*static int perform = 1;*/
 
 static struct user_operator* user_ops; //stores linked list of user operators
@@ -340,7 +343,7 @@ int isStructType(){
 
 //Since a type system doesn't quite exist yet, all struct variables have to start with stru
 int isVarStruct(char* name){
-    return name[0] == 's' && name[1] == 't' && name[2] == 'r' && name[3] =='u';
+    return getVarType(name) >= standardTypeCount;
 }
 
 //figures out what index a certain variable is in a struct
@@ -959,23 +962,21 @@ void setVarNum(char *id, int var_num, int varType) {
     node_ptr->var_num = var_num;
 }
 
-/* prints instructions to set the value of %rax to the value of the variable */
-void getArr(char *id, int arrIndex) {
-    //?is this section sufficiently different from get to justify reimplementing it instead of making a call to get?
-    //?get was changed, so you may want to consider modifying this code
-    int var_num = getVarNum(id);
-    fprintf(stderr, "get varnum is %d\n", var_num);
-    printf("    push %%r15\n");
-    switch (var_num) {
-        case 0:
-            setVarNum(id, 1, 2);
-            printf("    mov %s_var,%%r15\n", id);
-            break;
-        default:
-            printf("    mov %d(%%rbp), %%r15\n", 8 * (var_num));
+void beginVarScope(void) {
+    struct var_namespace *new_scope = malloc(sizeof(struct var_namespace));
+    new_scope->root_ptr = calloc(1, sizeof(struct trie_node));
+    new_scope->next_var_num = namespace_head->next_var_num;
+    new_scope->next = namespace_head;
+    namespace_head = new_scope;
+}
+
+void endVarScope(void) {
+    namespace_head = namespace_head->next;
+    if (namespace_head->next_var_num % 2 == 0) {
+        printf("    lea %d(%%rbp),%%rsp\n", 8 * (namespace_head->next_var_num));
+    } else {
+        printf("    lea %d(%%rbp),%%rsp\n", 8 * (namespace_head->next_var_num + 1));
     }
-    printf("    lea %d(%%r15), %%rax\n", 8 * arrIndex);
-    printf("    pop %%r15\n");
 }
 
 /* prints instructions to set the value of %rax to the value of the variable */
@@ -992,6 +993,13 @@ void get(char *id, char *instruction) {
             printf("    %s %d(%%rbp),%%rax\n", instruction, 8 * var_num);
             break;
     }
+}
+
+void getArr(char *id, int arrIndex) {
+    //?is this section sufficiently different from get to justify reimplementing it instead of making a call to get?
+    //?get was changed, so you may want to consider modifying this code
+    get(id, "mov");
+    printf("    lea %d(%%rax), %%rax\n", 8 * arrIndex);
 }
 
 /* prints instructions to set the value of the variable to the value of %rax */
@@ -1191,9 +1199,9 @@ void e1(int perform) {
             consume(); // consume int
             if (perform) {
                 getArr(id, arrIndex);
-            }
-            if (perform && !isRightBracket()) {
-                error(GENERAL, "expected ] after array variable");
+                if (!isRightBracket()) {
+                    error(GENERAL, "expected ] after array variable");
+                }
             }
             consume(); // consume ]
             while (isLeftBracket()) {
@@ -1484,11 +1492,6 @@ int getLeftSideVariable(char* id, int isArr, int perform) {
     }
     int displacement = -1;
     while(isDot()){
-        if (perform) {
-            if(!isVarStruct(id)){
-                error(GENERAL, "Nonstruct variable being followed by .");
-            }
-        }
         consume();
         if (perform) {
             if(!isId()){
@@ -1563,6 +1566,7 @@ int statement(int perform) {
         }
         if (isArr || isDot()) {
             struct_decode_type = getVarType(id);
+            struct_decode_type_np = struct_decode_type;
             displacement = getLeftSideVariable(id, isArr, perform);
         }
         if (overrideSet) {
@@ -1644,7 +1648,9 @@ int statement(int perform) {
         return 1;
     } else if (isLeftBlock()) {
         consume();
+        beginVarScope();
         seq(perform);
+        endVarScope();
         if (!isRightBlock())
             error(BRACKET_MISMATCH, "Unclosed statement block\n");
         consume();
@@ -1760,14 +1766,18 @@ int statement(int perform) {
             printf("    test %%rax,%%rax\n");
             printf("    jz if_end_%u\n", if_num);
         }
+        beginVarScope();
         statement(perform);
+        endVarScope();
         if (perform) {
             printf("    jmp else_end_%u\n", if_num);
             printf("if_end_%u:\n", if_num);
         }
         if (isElse()) {
             consume();
+            beginVarScope();
             statement(perform);
+            endVarScope();
         }
         if (perform) {
             printf("else_end_%u:\n", if_num);
@@ -1784,7 +1794,9 @@ int statement(int perform) {
             printf("    test %%rax,%%rax\n");
             printf("    jz while_end_%u\n", while_num);
         }
+        beginVarScope();
         statement(perform);
+        endVarScope();
         if (perform) {
             printf("    jmp while_begin_%u\n", while_num);
             printf("while_end_%u:\n", while_num);
@@ -1918,7 +1930,9 @@ int statement(int perform) {
             printf("    jmp  *.SW%d(,%%rax, 8)\n", switch_count);
             int locswitch_count = switch_count;
             switch_count++;
+            beginVarScope();
             statement(1);
+            endVarScope();
             printf(" ESW%d:\n", locswitch_count);
         }
         return 1;
@@ -2094,18 +2108,6 @@ void seq(int perform) {
     while (statement(perform)) { fflush(stdout); }
 }
 
-void beginVarScope() {
-    struct var_namespace *new_scope = malloc(sizeof(struct var_namespace));
-    new_scope->root_ptr = calloc(1, sizeof(struct trie_node));
-    new_scope->next_var_num = namespace_head->next_var_num;
-    new_scope->next = namespace_head;
-    namespace_head = new_scope;
-}
-
-void endVarScope() {
-    namespace_head = namespace_head->next;
-    printf("    lea %d(%%rbp),%%rsp\n", namespace_head->next_var_num + 1);
-}
 
 void function(void) {
     if (!isFun()) {
@@ -2540,31 +2542,9 @@ void definePass(void) {
     } //end while
     //reset to first token before exiting method
     current_token = first_token;
-    //debug linked list
-    /*printf("tokens after define pass : \n");
-    while(current_token->type != END) {
-        if(current_token->type == ID) {
-            printf("token %s\n", current_token->value.id);
-        } else {
-            printf("token %s\n", tokenStrings[current_token->type]);
-        }
-        current_token = current_token->next;
-    }
-    current_token = first_token;*/
 }
 
 void program(void) {
-    //debug linked list
-    /*printf("tokens : \n");
-    while(current_token->type != END) {
-        if(current_token->type == ID) {
-            printf("token %s\n", current_token->value.id);
-        } else {
-            printf("token %s\n", tokenStrings[current_token->type]);
-        }
-        current_token = current_token->next;
-    }
-    current_token = first_token;*/
     //second pass to replace user operators with their expressions
     definePass();
     //other top level statements
