@@ -1,0 +1,124 @@
+long rpaddle = 2500000
+long lpaddle = 2500000
+long pixelsize = 10000;
+long x = 0;
+long y = 0;
+long isa;
+long isq;
+long iso;
+long isl;
+long xdir = 0;
+long ydir = 0;
+long xspeed = 150;
+long yspeed = 150;
+fun main(){
+    long qq = 0;
+    long count = 0;
+    x = 3500000
+    y = 2500000
+    iso = 0;
+    isa = 0;
+    isq = 0;
+    isl = 0;
+    startwindow 700 500
+    startkeyboarddown
+        if(key == 97){
+            isa = 1;
+        }
+        if(key == 113){
+            isq = 1;
+        }
+        if(key == 111){
+            iso = 1;
+        }
+        if(key == 108){
+            isl = 1;
+        }
+    endkeyboarddown
+    startkeyboardup
+        if(key == 97){
+            isa = 0;
+        }
+        if(key == 113){
+            isq = 0;
+        }
+        if(key == 111){
+            iso = 0;
+        }
+        if(key == 108){
+            isl = 0;
+        }
+    endkeyboardup
+    if(isq){
+        lpaddle = lpaddle + 200;
+    }
+    if(isa){
+        lpaddle = lpaddle - 200;
+    }
+    if(iso){
+        rpaddle = rpaddle + 200;
+    }
+    if(isl){
+        rpaddle = rpaddle - 200;
+    }
+    if(rpaddle < 50 * pixelsize) {
+        rpaddle = 50 * pixelsize;
+    }
+    if(rpaddle > 450 * pixelsize){
+        rpaddle = 450 * pixelsize;
+    }
+    if(lpaddle < 50 * pixelsize) {
+        lpaddle = 50 * pixelsize;
+    }
+    if(lpaddle > 450 * pixelsize) {
+        lpaddle = 450 * pixelsize;
+    }
+    if(xdir == 0) {
+        x = x - xspeed;
+    }
+    if(xdir == 1) {
+        x = x + xspeed;
+    }
+    if(ydir == 0) {
+        y = y - yspeed;
+    }
+    if(ydir == 1) {
+        y = y + yspeed;
+    }
+    if(y < 8 * pixelsize){
+        ydir = 1;
+    }
+    if(y > 492 * pixelsize){
+        ydir = 0;
+    }
+    if((x < 20 * pixelsize) & (y > lpaddle - 50 * pixelsize) & (y < lpaddle + 50 * pixelsize)){
+        if(xdir == 0){
+            xspeed = xspeed + 20;
+            yspeed = yspeed + 2;
+        }
+        xdir = 1;
+    }
+    if((x < 1 * pixelsize) | (x > 699 * pixelsize)){
+        x = 3500000;
+        y = 2500000;
+        lpaddle = 250 * pixelsize;
+        rpaddle = 250 * pixelsize;
+        xspeed = 150;
+    }
+    if((x > 680 * pixelsize) & (y > rpaddle - 50 * pixelsize) & (y < rpaddle + 50 * pixelsize)){
+        if(xdir == 1){
+            xspeed = xspeed + 20;
+            yspeed = yspeed + 2;
+        }
+        xdir = 0;
+    }
+    qq = drawrect(0, lpaddle - (50 * pixelsize), 20 * pixelsize, 100 * pixelsize);
+    qq = drawrect(680 * pixelsize, rpaddle - (50 * pixelsize), 20 * pixelsize, 100 * pixelsize);
+    qq = drawngon(x, y, 8 * pixelsize, 10);
+    if(count > 10000){
+        qq = setcolor(random() % 128 + 128, random() % 128 + 128, random() % 128 + 128);
+        count = 0;
+    }
+    count = count + 1;
+    endwindow
+}
