@@ -255,14 +255,14 @@ int levenshtein(char *s1, char *s2) {
     s2len = strlen(s2);
     unsigned int column[s1len+1];
     for (y = 1; y <= s1len; y++)
-	column[y] = y;
+        column[y] = y;
     for (x = 1; x <= s2len; x++) {
-	column[0] = x;
-	for (y = 1, lastdiag = x-1; y <= s1len; y++) {
-	    olddiag = column[y];
-	    column[y] = MIN3(column[y] + 1, column[y-1] + 1, lastdiag + (s1[y-1] == s2[x-1] ? 0 : 1));
-	    lastdiag = olddiag;
-	}
+        column[0] = x;
+        for (y = 1, lastdiag = x-1; y <= s1len; y++) {
+            olddiag = column[y];
+            column[y] = MIN3(column[y] + 1, column[y-1] + 1, lastdiag + (s1[y-1] == s2[x-1] ? 0 : 1));
+            lastdiag = olddiag;
+        }
     }
     return(column[s1len]);
 }
@@ -271,17 +271,17 @@ int levenshtein(char *s1, char *s2) {
 void convertToUpperCase(char *sPtr)
 {
     while(*sPtr != '\0'){
-	*sPtr = toupper((unsigned char)*sPtr);
-	sPtr = sPtr + 1;
+        *sPtr = toupper((unsigned char)*sPtr);
+        sPtr = sPtr + 1;
     }
 }
 
 void detectMispelledKeyword(char* id){
     convertToUpperCase(id);
     for(int i = 0; i < numTokenTypes; i++){
-	if(levenshtein(tokenStrings[i], id) < 2){
-	    fprintf(stderr, "Maybe instead of %s you meant %s\n", id, tokenStrings[i]);
-	}
+        if(levenshtein(tokenStrings[i], id) < 2){
+            fprintf(stderr, "Maybe instead of %s you meant %s\n", id, tokenStrings[i]);
+        }
     }
 }
 
@@ -612,7 +612,7 @@ struct token *getToken(void) {
         } else {
             next_token->type = ID;
             next_token->value.id = strcpy(malloc(id_length+1), id_buffer);
-	    next_token->value.id[id_length] = '\0';
+            next_token->value.id[id_length] = '\0';
             if (next_char == '[') {
                 next_token->isArray = 1;
             }
@@ -1359,7 +1359,7 @@ void e6(struct trie_node *local_root_ptr, int perform) {
         if (perform) {
             printf("    mov %%rbx, %%r8\n");
         }
-        e5(local_root_ptr, perform);
+        e6(local_root_ptr, perform);
         if (perform) {
             printf("    mov %%rbx, %%r9\n");
         }
@@ -1367,7 +1367,7 @@ void e6(struct trie_node *local_root_ptr, int perform) {
             error(GENERAL, "Requred colon in between arguments when doing ternary operator");
         }
         consume();
-        e5(local_root_ptr, perform);
+        e6(local_root_ptr, perform);
         if (perform) {
             printf("    test %%r8, %%r8\n");
             printf("    cmovne %%r9, %%rbx\n");
