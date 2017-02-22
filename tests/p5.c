@@ -17,11 +17,9 @@
 enum token_type {
     IF_KWD,
     ELSE_KWD,
-    QUESTION_MARK,
     WHILE_KWD,
     FUN_KWD,
     RETURN_KWD,
-    COLON,
     PRINT_KWD,
     STRUCT_KWD,
     TYPE_KWD,
@@ -72,11 +70,13 @@ enum token_type {
     CHAR,
     TRUE,
     FALSE,
+    COLON,
+    QUESTION_MARK
 };
 
 static int numTokenTypes = 57;
 
-char* tokenStrings[59]= {"IF", "ELSE", "WHILE", "FUN", "RETURN", "PRINT", "STRUCT", "TYPE", "BELL", "DELAY", "-", "/", "%", "REFERENCE", "DEREFERENCE", "WINDOW_START", "WINDOW_END", "PLAY", "KBDOWNLOGIC", "KBDOWNEND", "KBUPLOGIC", "KBUPEND" "EQ", "DEFINE", "==", "<", ">", "<>", "AND", "OR", "XOR", "SEMI", "[", "]", ",", ".", "(", ")", "{", "}", "+", "*", "ID", "INTEGER", "USER_OP", "END", "SWITCH", "CASE", "BREAK", "DEFAULT", "LONG", "BOOLEAN", "CHAR", "TRUE", "FALSE", ":", "?", "@", "$"};
+char* tokenStrings[57]= {"IF", "ELSE", "WHILE", "FUN", "RETURN", "PRINT", "STRUCT", "TYPE", "BELL", "DELAY", "-", "/", "%", "REFERENCE", "DEREFERENCE", "WINDOW_START", "WINDOW_END", "PLAY", "KBDOWNLOGIC", "KBDOWNEND", "KBUPLOGIC", "KBUPEND", "EQ", "DEFINE", "==", "<", ">", "<>", "AND", "OR", "XOR", "SEMI", "[", "]", ",", ".", "(", ")", "{", "}", "+", "*", "ID", "INTEGER", "USER_OP", "END", "SWITCH", "CASE", "BREAK", "DEFAULT", "LONG", "BOOLEAN", "CHAR", "TRUE", "FALSE", ":", "?"};
 
 union token_value {
     char *id;
@@ -2522,17 +2522,6 @@ void definePass(void) {
     } //end while
     //reset to first token before exiting method
     current_token = first_token;
-    //debug linked list
-    /*printf("tokens : \n");
-    while(current_token->type != END) {
-        if(current_token->type == ID) {
-            printf("token %s\n", current_token->value.id);
-        } else {
-            printf("token %s\n", tokenStrings[current_token->type]);
-        }
-        current_token = current_token->next;
-    }
-    current_token = first_token;*/
 }
 
 void program(void) {
