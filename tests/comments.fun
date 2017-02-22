@@ -7,4 +7,8 @@ fun main() { #fungus
 #fun b() {
     #test
     print 123#456
+    #~
+    print 0
+    print 2
+    ~#print 1
 }
