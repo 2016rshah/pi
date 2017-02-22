@@ -2334,7 +2334,7 @@ void compile(void) {
     printf("    call bg_drawngon\n");
     printf("    pop %%r8\n");
     printf("    ret\n");
-    printf("random_fun:");
+    printf("random_fun:\n");
     printf("    mov rand_seed,%%rax\n");
     printf("    mov %%rax,%%rdi\n");
     printf("    shl $21,%%rdi\n");
@@ -2346,6 +2346,19 @@ void compile(void) {
     printf("    shl $4,%%rdi\n");
     printf("    xor %%rdi,%%rax\n");
     printf("    mov %%rax,rand_seed\n");
+    printf("    ret\n");
+    printf("getchar_fun:\n");
+    printf("    push %%r8\n");
+    printf("    call getchar\n");
+    printf("    movslq %%eax, %%rax\n");
+    printf("    pop %%r8\n");
+    printf("    ret\n");
+    printf("printchar_fun:\n");
+    printf("    push %%r8\n");
+    printf("    mov $output_format_char, %%rdi\n");
+    printf("    mov 16(%%rsp), %%rsi\n");
+    printf("    call printf\n");
+    printf("    pop %%r8\n");
     printf("    ret\n");
     printf("//END STANDARD FUNCTIONS BLOCK\n");
 
@@ -2374,6 +2387,8 @@ void compile(void) {
     printf("    .data\n");
     printf("output_format:\n");
     printf("    .string \"%%" PRIu64 "\\n\"\n");
+    printf("output_format_char:\n");
+    printf("    .string \"%%c\"\n");
     printf("bell_format:\n");
     printf("    .string \"\7\"\n");
     printf("ineedazero:\n"); //I need a pointer to zero for Open GL

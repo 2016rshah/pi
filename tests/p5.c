@@ -35,8 +35,10 @@ enum token_type {
     WINDOW_START,
     WINDOW_END,
     PLAY_KWD,
-    KBLOGIC,
-    KBEND,
+    KBDOWNLOGIC,
+    KBDOWNEND,
+    KBUPLOGIC,
+    KBUPEND,
     EQ, 
     DEFINE_KWD,
     EQ_EQ,
@@ -74,7 +76,7 @@ enum token_type {
 
 static int numTokenTypes = 57;
 
-char* tokenStrings[57]= {"IF", "ELSE", "WHILE", "FUN", "RETURN", "PRINT", "STRUCT", "TYPE", "BELL", "DELAY", "-", "/", "%", "REFERENCE", "DEREFERENCE", "WINDOW_START", "WINDOW_END", "PLAY", "KBLOGIC", "KBEND", "EQ", "DEFINE", "==", "<", ">", "<>", "AND", "OR", "XOR", "SEMI", "[", "]", ",", ".", "(", ")", "{", "}", "+", "*", "ID", "INTEGER", "USER_OP", "END", "SWITCH", "CASE", "BREAK", "DEFAULT", "LONG", "BOOLEAN", "CHAR", "TRUE", "FALSE", ":", "?", "@", "$"};
+char* tokenStrings[59]= {"IF", "ELSE", "WHILE", "FUN", "RETURN", "PRINT", "STRUCT", "TYPE", "BELL", "DELAY", "-", "/", "%", "REFERENCE", "DEREFERENCE", "WINDOW_START", "WINDOW_END", "PLAY", "KBDOWNLOGIC", "KBDOWNEND", "KBUPLOGIC", "KBUPEND" "EQ", "DEFINE", "==", "<", ">", "<>", "AND", "OR", "XOR", "SEMI", "[", "]", ",", ".", "(", ")", "{", "}", "+", "*", "ID", "INTEGER", "USER_OP", "END", "SWITCH", "CASE", "BREAK", "DEFAULT", "LONG", "BOOLEAN", "CHAR", "TRUE", "FALSE", ":", "?", "@", "$"};
 
 union token_value {
     char *id;
@@ -596,10 +598,14 @@ struct token *getToken(void) {
             next_token->type = SWITCH;
         } else if (strcmp(id_buffer, "case") == 0){
             next_token->type = CASE;
-        } else if (strcmp(id_buffer, "keyboard") == 0){
-            next_token->type = KBLOGIC;  
-        } else if (strcmp(id_buffer, "endkeyboard") == 0){
-            next_token->type = KBEND;  
+        } else if (strcmp(id_buffer, "startkeyboarddown") == 0){
+            next_token->type = KBDOWNLOGIC;  
+        } else if (strcmp(id_buffer, "endkeyboarddown") == 0){
+            next_token->type = KBDOWNEND;  
+        } else if (strcmp(id_buffer, "startkeyboardup") == 0){
+            next_token->type = KBUPLOGIC;
+        } else if (strcmp(id_buffer, "endkeyboardup") == 0) {
+            next_token->type = KBUPEND;  
         } else if (strcmp(id_buffer, "true") == 0) {
             next_token->type = TRUE;
         } else if (strcmp(id_buffer, "false") == 0) {
@@ -833,6 +839,22 @@ int isPlus() {
 
 int isInt() {
     return current_token->type == INTEGER;
+}
+
+int isKBDown() {
+    return current_token->type == KBDOWNLOGIC;
+}
+
+int isKBDownEnd() {
+    return current_token->type == KBDOWNEND;
+}
+
+int isKBUp() {
+    return current_token->type == KBUPLOGIC;
+}
+
+int isKBUpEnd() {
+    return current_token->type == KBUPEND;
 }
 
 char *getId() {
@@ -1644,16 +1666,33 @@ int statement(struct trie_node *local_root_ptr, int perform) {
             printf("    call glutDisplayFunc\n");
             printf("    movq $windowloop_%u, %%rdi\n", window_count);
             printf("    call glutIdleFunc\n");
-            if(current_token->type == KBLOGIC){
+            if(isKBDown()){
                 printf("    movq $keyboard_%u, %%rdi\n", window_count);
                 printf("    call glutKeyboardFunc\n");
             }
+            printf("    jmp keyboardup_setup_%u\n", window_count);
+            printf("    window_begin_%u:\n", window_count);
             printf("    call glutMainLoop\n");
             printf("    jmp windowdone_%u\n", window_count);
-            if(current_token->type == KBLOGIC){
+            if(isKBDown()){
                 printf("    keyboard_%u:\n", window_count);
                 consume();
-                while(current_token->type != KBEND){
+                while(!isKBDownEnd()){
+                    statement(local_root_ptr, perform);
+                }
+                printf("    ret\n");
+                consume();
+            }
+            printf("    keyboardup_setup_%u:\n", window_count);
+            if(isKBUp()){
+                printf("    movq $keyboardup_%u, %%rdi\n", window_count);
+                printf("    call glutKeyboardUpFunc\n");
+            }
+            printf("    jmp window_begin_%u\n", window_count);
+            if(isKBUp()){
+                printf("    keyboardup_%u:\n", window_count);
+                consume();
+                while(!isKBUpEnd()){
                     statement(local_root_ptr, perform);
                 }
                 printf("    ret\n");
@@ -1675,9 +1714,16 @@ int statement(struct trie_node *local_root_ptr, int perform) {
             printf("    //WINDOW END CODE BLOCK\n");
             window_count = window_count + 1;
         } else {
-            if(current_token->type == KBLOGIC){
+            if(isKBDown()){
                 consume();
-                while(current_token->type != KBEND){
+                while(!isKBDownEnd()){
+                    statement(local_root_ptr, perform);
+                }
+                consume();
+            }
+            if(isKBUp()){
+                consume();
+                while(!isKBUpEnd()){
                     statement(local_root_ptr, perform);
                 }
                 consume();
@@ -2288,7 +2334,7 @@ void compile(void) {
     printf("    call bg_drawngon\n");
     printf("    pop %%r8\n");
     printf("    ret\n");
-    printf("random_fun:");
+    printf("random_fun:\n");
     printf("    mov rand_seed,%%rax\n");
     printf("    mov %%rax,%%rdi\n");
     printf("    shl $21,%%rdi\n");
@@ -2300,6 +2346,19 @@ void compile(void) {
     printf("    shl $4,%%rdi\n");
     printf("    xor %%rdi,%%rax\n");
     printf("    mov %%rax,rand_seed\n");
+    printf("    ret\n");
+    printf("getchar_fun:\n");
+    printf("    push %%r8\n");
+    printf("    call getchar\n");
+    printf("    movslq %%eax, %%rax\n");
+    printf("    pop %%r8\n");
+    printf("    ret\n");
+    printf("printchar_fun:\n");
+    printf("    push %%r8\n");
+    printf("    mov $output_format_char, %%rdi\n");
+    printf("    mov 16(%%rsp), %%rsi\n");
+    printf("    call printf\n");
+    printf("    pop %%r8\n");
     printf("    ret\n");
     printf("//END STANDARD FUNCTIONS BLOCK\n");
 
@@ -2328,6 +2387,8 @@ void compile(void) {
     printf("    .data\n");
     printf("output_format:\n");
     printf("    .string \"%%" PRIu64 "\\n\"\n");
+    printf("output_format_char:\n");
+    printf("    .string \"%%c\"\n");
     printf("bell_format:\n");
     printf("    .string \"\7\"\n");
     printf("ineedazero:\n"); //I need a pointer to zero for Open GL
