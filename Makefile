@@ -19,6 +19,10 @@ graphics:
 	$(MAKE) transfer
 	$(MAKE) graphics -C tests/
 
+io:
+	$(MAKE) transfer
+	$(MAKE) io -C tests/
+
 all:
 	$(MAKE) transfer
 	$(MAKE) all -C tests/
