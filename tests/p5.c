@@ -81,6 +81,7 @@ char* tokenStrings[59]= {"IF", "ELSE", "WHILE", "FUN", "RETURN", "PRINT", "STRUC
 union token_value {
     char *id;
     uint64_t integer;
+    char user_op;
     char character;
 };
 struct swit_token{
@@ -139,10 +140,10 @@ struct user_operator {
     struct user_operator *next;
     char symbol;
     struct token *expression;
-    int expression_length;
-    //TODO: add types of variables
-    //char* type of first var
-    //char* type of second var
+    int type1;
+    int type2;
+    char *var1;
+    char *var2;
 };
 
 static jmp_buf escape;
@@ -186,7 +187,7 @@ static int definedTypeResize = 10;
 static int standardTypeCount = 0;
 static int variableType = 2;
 /*static int perform = 1;*/
-//static char *op_not_allowed = "_+*{}()|&^=<>,;\n\t\r"; //stores characters that can't be user operators
+
 static struct user_operator* user_ops; //stores linked list of user operators
 
 static int num_errors = 0;
@@ -380,7 +381,7 @@ int isIdChar(char ch) {
 }
 
 /*returns true if the given character is a defined user operator*/
-int isUserOp(char ch) {
+int isUserOp(char ch) { 
     struct user_operator* current = user_ops;
     while(current != NULL) {
         if(current->symbol == ch) {
@@ -390,6 +391,7 @@ int isUserOp(char ch) {
     }
     return 0;
 }
+
 
 /* inserts token2 after token1 */
 void insertToken(struct token *token1, struct token *token2) {
@@ -623,18 +625,12 @@ struct token *getToken(void) {
                 next_token->isArray = 1;
             }
         }
-    } else if(isUserOp(next_char)) { //user operator outside define statement
-        //TODO: implement this
-        //1. get the list of tokens from the user operator struct
-        //2. get the variable that came before the operator and delete this token
-        //3. get the variable that comes after the operator
-        //4. replace a and b with actual variable names
-        //5. add the tokens to the overall list of tokens
-    } else {
-        error(GENERAL, "invalid character");
-        next_token->type = 0;
+    } else { //assume that every other character is a user operator
+        next_token->type = USER_OP;
+        next_token->value.user_op = next_char;
+        next_char = getchar();
     }
-
+    
     return next_token;
 }
 
@@ -835,6 +831,10 @@ int isMul() {
 
 int isPlus() {
     return current_token->type == PLUS;
+}
+
+int isDefine() {
+    return current_token->type == DEFINE_KWD;
 }
 
 int isInt() {
@@ -2258,9 +2258,307 @@ void globalVarDef(void) {
     }
 }
 
+struct token *copyToken(struct token *curr_token) {
+    struct token *copy = malloc(sizeof(struct token));
+    if(curr_token->type == ID || curr_token->type == TYPE_KWD) {
+        copy->value.id = malloc(strlen(curr_token->value.id));
+        strcpy(copy->value.id, curr_token->value.id);
+    } else if(curr_token->type == INTEGER) {
+        copy->value.integer = curr_token->value.integer;
+    } else if(curr_token->type == CHAR) {
+        copy->value.character = curr_token->value.character;
+    }
+    copy->type = curr_token->type;
+    copy->isArray = curr_token->isArray;
+    copy->line_num = curr_token->line_num;
+    return copy;
+}
+
+void definePass(void) {
+    current_token = first_token;
+    struct user_operator *current_op = NULL;
+    while(current_token->type != END) { //look through whole list of tokens
+        //handle define statements
+        if(current_token->type == DEFINE_KWD) {
+            //move to next token
+            current_token = current_token->next;
+            
+            //next token should be a user operator
+            if(current_token->type != USER_OP) {
+                error(GENERAL, "invalid define statement");
+            }
+            //check if the user operator is a valid symbol
+            if(!isupper(current_token->value.user_op)) {
+                error(GENERAL, "invalid user operator symbol");
+            }
+            
+            //create new user operator
+            struct user_operator *operator = calloc(1, sizeof(struct user_operator));
+            operator->symbol = current_token->value.user_op;
+            operator->var1 = NULL;
+            operator->var2 = NULL;
+            //add to list of user operators
+            if(user_ops == NULL) { //no first link in linked list
+                user_ops = operator;
+                current_op = operator;
+            } else { //add links appropriately
+                current_op->next = operator;
+                current_op = operator;
+            }
+            operator->next = NULL;
+            
+            //get type of first variable
+            current_token = current_token->next;
+            if(current_token->type != TYPE_KWD) {
+                error(GENERAL, "no type specified for first variable in define statement");
+            } else {
+                operator->type1 = getTypeId(current_token->value.id);
+            }
+
+            //get type of second variable
+            current_token = current_token->next; 
+            if(current_token->type != TYPE_KWD) {
+                error(GENERAL, "no type specified for first variable in define statement");
+            } else {
+                operator->type2 = getTypeId(current_token->value.id);
+            }
+
+            //get expression
+            current_token = current_token->next;
+            //store previous node while forming linked list
+            struct token *curr_copy = NULL;
+            while(current_token->type != SEMI) { //expression ends with semicolon
+                //copy token
+                struct token *copy = copyToken(current_token);
+                //copy next and previous nodes
+                if(curr_copy == NULL) { //first iteration of while loop
+                    operator->expression = copy;
+                    curr_copy = copy;
+                    copy->next = NULL;
+                    copy->prev = NULL;
+                } else {
+                    copy->prev = curr_copy;
+                    curr_copy->next = copy;
+                    curr_copy = copy;
+                    copy->next = NULL;
+                }
+                //check if token is a variable and store variable names
+                if(current_token->type == ID) {
+                    if(operator->var1 == NULL) {
+                        operator->var1 = (char*)(malloc(strlen(current_token->value.id)));
+                        strcpy(operator->var1, current_token->value.id);
+                    } else if(operator->var2 == NULL) {
+                        operator->var2 = (char*)(malloc(strlen(current_token->value.id)));
+                        strcpy(operator->var2, current_token->value.id);
+                    } else if(!(strcmp(operator->var1, current_token->value.id) == 0 || strcmp(operator->var2, current_token->value.id) == 0)) {
+                        //expression can only handle two variables right now
+                        error(GENERAL, "too many variables in this expression");
+                    }
+                }
+                //move to next token
+                current_token = current_token->next;
+            }
+        } else if(current_token->type == USER_OP) { //TODO: implement
+            //check if the user operator is a valid user operator
+            if(!isupper(current_token->value.user_op)) {
+                error(GENERAL, "invalid character for user operator");
+            }
+            
+            //find the user operator information from the linked list
+            struct user_operator *operator = user_ops;
+            while(operator != NULL) {
+                if(operator->symbol == current_token->value.user_op) {
+                    break;
+                }
+                operator = operator->next;
+            }
+            if(operator == NULL) {
+                error(GENERAL, "tried to use a user operator without defining it");
+            }
+
+            //ignore user operators that follow define statements, that should be handled above
+            if(current_token->prev->type != DEFINE_KWD) {
+                //get left half of expression (to left of operator)
+                struct token *leftStart = current_token->prev;
+                struct token *leftEnd = leftStart;
+                //TODO: dereferenced pointers
+                if(leftStart->type == RIGHT) { //case 1: expression or function
+                    while(leftStart->type != LEFT) { //move to left parenthesis
+                        leftStart = leftStart->prev;
+                    }
+                    if(leftStart->prev->type == ID) { //function
+                        //start at fun keyword
+                        leftStart = leftStart->prev;
+                    }
+                } else if(leftStart->type == INTEGER) { //case 2: single integer without parentheses
+                } else if(leftStart->type == ID) { //case 3: variables
+                    if(leftStart->prev->type == DOT) { //case 4: struct elements
+                        //start at struct name
+                        leftStart = leftStart->prev->prev;
+                    } else { //just a plain old variable
+                    }
+                }
+                else if(leftStart->type == RIGHT_BRACKET) { //case 5: array elements
+                    while(leftStart->type != LEFT_BRACKET) { //go back to left bracket
+                        leftStart = leftStart->prev;
+                    }
+                    //start at array name
+                    leftStart = leftStart->prev;
+                }
+                
+                //get right half of expression (to right of operator)
+                struct token *rightStart = current_token->next;
+                struct token *rightEnd = rightStart;
+                //TODO: pointers?
+                if(rightEnd->type == LEFT || rightEnd->type == FUN_KWD) { //case 1: expression or function
+                    while(rightEnd->type != RIGHT) { //move to right parenthesis
+                        rightEnd = rightEnd->next;
+                    }
+                } else if(rightEnd->type == INTEGER) { //case 2: single integer without parentheses
+                } else if(rightEnd->type == ID) { //case 3: variables
+                    if(rightEnd->next->type == DOT) { //case 4: struct elements
+                        //start at struct name
+                        rightEnd = rightEnd->next->next;
+                    } else if(rightEnd->next->type == LEFT_BRACKET) { //case 5: array elements
+                        while(rightEnd->type != RIGHT_BRACKET) { //move to right bracket
+                            rightEnd = rightEnd->next;
+                        }
+                    } else { //case 3: just a plain old variable
+                    }
+                }
+
+                //update current token
+                current_token = rightEnd->next;
+
+                //insert actual expression into place where user operator is located
+                int isFirstIteration = 1;
+                struct token *exprEnd; //stores end of expression in operator
+                struct token *exprStart = copyToken(operator->expression); //start of expression in operator
+                struct token *copy_this = operator->expression->next; //original expression node to copy
+                struct token *curr_copy = NULL; //copy of previous expression node
+                struct token *copy; //current copy of node
+                while(copy_this != NULL) {
+                    //keep track of whether or not curr_copy has been altered
+                    int curr_changed = 0;
+                    //copy token if not the first iteration, otherwise use first copy made above
+                    if(curr_copy != NULL) {
+                        copy = copyToken(copy_this);
+                        //copy next and previous nodes
+                        copy->prev = curr_copy;
+                        curr_copy->next = copy;
+                        copy->next = NULL;
+                    } else {
+                        copy = exprStart;
+                        //create links between start of expression and whole code
+                        exprStart->prev = leftStart->prev;
+                        leftStart->prev->next = exprStart;
+                    }
+                    //check if token is a variable and replace variable names with expressions
+                    if(copy->type == ID) {
+                        int ranIfs = 0;
+                        struct token *exprBegin; //beginning of expression
+                        struct token *curr_token; //previous token copied
+                        struct token *copy_this_token; //token to copy from variable expression
+                        struct token *copy_end; //last token to copy
+                        //assign variables as necessary for left or right                    
+                        if(strcmp(operator->var1, copy->value.id) == 0) { //var 1
+                            //copy whole linked list of var1 expression
+                            exprBegin = copyToken(leftStart);
+                            copy_this_token = leftStart;
+                            copy_end = leftEnd->next;
+                            ranIfs = 1;
+                        } else if(strcmp(operator->var2, copy->value.id) == 0) { //var 2
+                            //copy whole linked list of var2 expression
+                            exprBegin = copyToken(rightStart);
+                            copy_this_token = rightStart;
+                            copy_end = rightEnd->next;
+                            ranIfs = 1;
+                        }
+                    
+                        if(ranIfs) {
+                            curr_token = NULL;
+                            //copy whole linked list of expressions for the specified variable
+                            while(copy_this_token != copy_end) {
+                                struct token *copy2;
+                                if(curr_token == NULL) { //first iteration
+                                    copy2 = exprBegin;
+                                    //create links
+                                    exprBegin->prev = copy->prev;
+                                    copy->prev->next = exprBegin;
+                                    //save new start of expression
+                                    if(copy == exprStart) {
+                                        exprStart = exprBegin;
+                                    }
+                                } else {
+                                    copy2 = copyToken(copy_this_token);
+                                    copy2->prev = curr_token;
+                                    curr_token->next = copy2;
+                                }
+                                copy2->next = NULL;
+                                curr_token = copy2;
+                                copy_this_token = copy_this_token->next;
+                            }
+                            //link boundary nodes in expression and greater chunk
+                            //copy = node currently storing the variable
+                            curr_token->next = copy->next;
+                            if(copy->next != NULL) {
+                                copy->next->prev = curr_token;
+                            }
+                            exprEnd = curr_token;
+                            curr_copy = exprEnd;
+                            curr_changed = 1;
+                        }
+                    }
+                    //move to next token
+                    if(!curr_changed) {
+                        curr_copy = copy;
+                    }
+                    //if(curr_copy != exprStart) { //not first iteration of while
+                    if(!isFirstIteration) {
+                        copy_this = copy_this->next;
+                    } else {
+                        isFirstIteration = 0;
+                    }
+                } //end while
+                //break links between overall code and this whole expression, insert expression into empty space
+                leftStart->prev->next = exprStart;
+                exprStart->prev = leftStart->prev;
+                exprEnd->next = current_token;
+                current_token->prev = exprEnd;
+            }//end if !define 
+        } //end while
+        //check next token unless we've hit the end
+        if(current_token->type != END) {
+            current_token = current_token->next;
+        }
+    } //end while
+    //reset to first token before exiting method
+    current_token = first_token;
+    //debug linked list
+    /*printf("tokens : \n");
+    while(current_token->type != END) {
+        if(current_token->type == ID) {
+            printf("token %s\n", current_token->value.id);
+        } else {
+            printf("token %s\n", tokenStrings[current_token->type]);
+        }
+        current_token = current_token->next;
+    }
+    current_token = first_token;*/
+}
+
 void program(void) {
+    //second pass to replace user operators with their expressions
+    definePass();
+    //other top level statements
     while (1) {
-        if (isFun()) {
+        if (isDefine()) {
+            //skip whole define statement
+            while(!isSemi()) {
+                current_token = current_token->next;
+            }
+            current_token = current_token->next;
+        } else if (isFun()) {
             function();
         } else if (isStruct()) {
             structDef();
@@ -2378,7 +2676,6 @@ void compile(void) {
         current_token = current_token->next;
     }
     current_token = first_token;
-
     global_root_ptr = calloc(1, sizeof(struct trie_node));
     int x = setjmp(escape);
     if (x == 0) {
