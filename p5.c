@@ -196,6 +196,8 @@ static int struct_decode_type_np = 0;
 
 static struct user_operator* user_ops; //stores linked list of user operators
 
+static int isWindow = 0;
+
 static int num_errors = 0;
 static int curr_line_num = 1;
 
@@ -983,9 +985,13 @@ void beginVarScope(void) {
 void endVarScope(void) {
     namespace_head = namespace_head->next;
     if (namespace_head->next_var_num % 2 == 0) {
-        printf("    lea %d(%%rbp),%%rsp\n", 8 * (namespace_head->next_var_num));
+        if (!isWindow) {
+            printf("    lea %d(%%rbp),%%rsp\n", 8 * (namespace_head->next_var_num));
+        }
     } else {
-        printf("    lea %d(%%rbp),%%rsp\n", 8 * (namespace_head->next_var_num + 1));
+        if (!isWindow) {
+            printf("    lea %d(%%rbp),%%rsp\n", 8 * (namespace_head->next_var_num + 1));
+        }
     }
 }
 
@@ -1666,6 +1672,7 @@ int statement(int perform) {
         consume();
         return 1;
     } else if (isWindowStart()) {
+        isWindow = 1;
         consume();
         if(!isInt()){
             error(GENERAL, "Expected window x size after declaring window start block\n");
@@ -1766,6 +1773,7 @@ int statement(int perform) {
                 statement(perform);
             }
         }
+        isWindow = 0;
         consume();
         return 1;   
     } else if (isIf()) {
