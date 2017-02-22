@@ -110,7 +110,6 @@ struct struct_data {
 struct token {
     enum token_type type;
     union token_value value;
-    int isArray;
     int line_num;
     struct token *next;
     struct token *prev;
@@ -127,6 +126,12 @@ struct trie_node {
     char ch;
     //which type the variable is
     int var_type;
+};
+
+struct var_namespace {
+    struct trie_node *root_ptr;
+    struct var_namespace *next;
+    int next_var_num;
 };
 
 struct fun_signature {
@@ -155,7 +160,7 @@ static unsigned int id_buffer_size;
 static struct token *first_token;
 static struct token *current_token;
 
-static struct trie_node *global_root_ptr;
+static struct var_namespace *namespace_head;
 
 //static struct fun_signature *signature_head;
 
@@ -172,9 +177,6 @@ static unsigned int defaultflag = 0;
 static unsigned int caseflag = 0;
 static unsigned int runswiflag = 0;
 
-
-static int local_var_num = -1;
-static int num_variable_declarations = 0;
 static int num_global_vars = 0;
 static char *function_name;
 
@@ -350,7 +352,7 @@ int getVarIndexInStruct(char* varName, int structType){
                     return j;
                 }
             }
-            error(GENERAL, "structure var name after dot was not recognize for specified structure");
+            error(GENERAL, "structure var name after dot was not recognize for specified structure\n");
         }
     }
     return 0; //We don't have a struct data structure at the moment
@@ -448,7 +450,6 @@ char removeWhitespace(char next_char) {
 /* read a token from standard in */
 struct token *getToken(void) {
     struct token *next_token = malloc(sizeof(struct token));
-    next_token->isArray = 0;
     next_token->next = 0;
     next_token->prev = 0;
 
@@ -547,7 +548,7 @@ struct token *getToken(void) {
         next_token->value.character = next_char;
         next_char = getchar();
         if (next_char != '\'') {
-            error(GENERAL, "invalid character");
+            error(GENERAL, "invalid character\n");
         }
         next_char = getchar();
     } else if (isdigit(next_char)) {
@@ -620,10 +621,7 @@ struct token *getToken(void) {
         } else {
             next_token->type = ID;
             next_token->value.id = strcpy(malloc(id_length+1), id_buffer);
-	    next_token->value.id[id_length] = '\0';
-            if (next_char == '[') {
-                next_token->isArray = 1;
-            }
+	        next_token->value.id[id_length] = '\0';
         }
     } else { //assume that every other character is a user operator
         next_token->type = USER_OP;
@@ -639,10 +637,6 @@ void consume() {
     if (current_token->type != END) {
         current_token = current_token->next;
     }
-}
-
-int isArray() {
-    return current_token->isArray;
 }
 
 int isWhile() {
@@ -881,27 +875,8 @@ void freeTrie(struct trie_node *node_ptr) {
 }
 
 //If you don't know what you're doing keep the dummy method
-int getVarTypePos(char *id, struct trie_node *node_ptr) {
-  for (char* ch_ptr = id; *ch_ptr != 0; ch_ptr++) {
-  int child_num;
-  if (isdigit(*ch_ptr)) {
-  child_num = *ch_ptr - '0';
-  } else {
-  child_num = *ch_ptr - 'a' + 10;
-  }
-  if (node_ptr->children[child_num] == 0) {
-  return -1;
-  }
-  node_ptr = node_ptr->children[child_num];
-  }
-  return node_ptr->var_type;
-  }
-
-int getVarType(char *id, struct trie_node *node_ptr) {
-    return standardTypeCount;
-}
-
-int getVarNum(char *id, struct trie_node *node_ptr) {
+int getVarTypePos(char *id) {
+    struct trie_node *node_ptr = namespace_head->root_ptr;
     for (char* ch_ptr = id; *ch_ptr != 0; ch_ptr++) {
         int child_num;
         if (isdigit(*ch_ptr)) {
@@ -910,16 +885,44 @@ int getVarNum(char *id, struct trie_node *node_ptr) {
             child_num = *ch_ptr - 'a' + 10;
         }
         if (node_ptr->children[child_num] == 0) {
-            return 0;
+            return -1;
         }
         node_ptr = node_ptr->children[child_num];
     }
-    return node_ptr->var_num;
+    return node_ptr->var_type;
 }
 
+int getVarType(char *id) {
+    return standardTypeCount;
+}
 
+int getVarNum(char *id) {
+    struct var_namespace *current_namespace = namespace_head;
+    while (current_namespace != 0) {
+        struct trie_node *node_ptr = current_namespace->root_ptr;
+        for (char* ch_ptr = id; *ch_ptr != 0; ch_ptr++) {
+            int child_num;
+            if (isdigit(*ch_ptr)) {
+                child_num = *ch_ptr - '0';
+            } else {
+                child_num = *ch_ptr - 'a' + 10;
+            }
+            node_ptr = node_ptr->children[child_num];
+            if (node_ptr == 0) {
+                current_namespace = current_namespace->next;
+                node_ptr = 0;
+                break;
+            }
+        }
+        if (node_ptr != 0 && node_ptr->var_num != 0) {
+            return node_ptr->var_num;
+        }
+    }
+    return 0;
+}
 
-void setVarNum(char *id, struct trie_node *node_ptr, int var_num, int varType) {
+void setVarNum(char *id, int var_num, int varType) {
+    struct trie_node *node_ptr = namespace_head->root_ptr;
     for (char* ch_ptr = id; *ch_ptr != 0; ch_ptr++) {
         int child_num;
         if (isdigit(*ch_ptr)) {
@@ -931,22 +934,24 @@ void setVarNum(char *id, struct trie_node *node_ptr, int var_num, int varType) {
             struct trie_node *new_node_ptr = calloc(1, sizeof(struct trie_node));
             new_node_ptr->parent = node_ptr;
             new_node_ptr->ch = *ch_ptr;
-            new_node_ptr->var_type = varType;
             node_ptr->children[child_num] = new_node_ptr;
         }
         node_ptr = node_ptr->children[child_num];
     }
+    node_ptr->var_type = varType;
     node_ptr->var_num = var_num;
 }
 
 /* prints instructions to set the value of %rax to the value of the variable */
-void getArr(char *id, struct trie_node *local_root_ptr, int arrIndex) {
-    int var_num = getVarNum(id, local_root_ptr);
+void getArr(char *id, int arrIndex) {
+    //?is this section sufficiently different from get to justify reimplementing it instead of making a call to get?
+    //?get was changed, so you may want to consider modifying this code
+    int var_num = getVarNum(id);
     fprintf(stderr, "get varnum is %d\n", var_num);
     printf("    push %%r15\n");
     switch (var_num) {
         case 0:
-            setVarNum(id, global_root_ptr, 1, 2);
+            setVarNum(id, 1, 2);
             printf("    mov %s_var,%%r15\n", id);
             break;
         default:
@@ -957,28 +962,18 @@ void getArr(char *id, struct trie_node *local_root_ptr, int arrIndex) {
 }
 
 /* prints instructions to set the value of %rax to the value of the variable */
-void get(char *id, struct trie_node *local_root_ptr, char *instruction) {
-    int var_num = getVarNum(id, local_root_ptr);
+void get(char *id, char *instruction) {
+    int var_num = getVarNum(id);
     switch (var_num) {
         case 0:
-            //check global, if not there, error
-            if (getVarNum(id, global_root_ptr)) {
-                if (strcmp(instruction, "()") != 0) {
-                    printf("    %s %s_var,%%rax\n", instruction, id);
-                } else {
-                    printf("    mov (%s_var), %%rax\n", id);
-                }
-            } else {
-                error_missingVariable(id);
-            }
+            error_missingVariable(id); 
+            break;
+        case 1:
+            printf("    %s %s_var,%%rax\n", instruction, id);
             break;
         default:
-            if (strcmp(instruction, "()") != 0) {
-                printf("    %s %d(%%rbp),%%rax\n", instruction, 8 * var_num);
-            } else {
-                printf("    mov %d(%%rbp), %%rax\n", 8 * var_num);
-                printf("    mov (%%rax), %%rax\n");
-            }
+            printf("    %s %d(%%rbp),%%rax\n", instruction, 8 * var_num);
+            break;
     }
 }
 
@@ -999,20 +994,18 @@ void get(char *id, struct trie_node *local_root_ptr, char *instruction) {
   }
   */
 /* prints instructions to set the value of the variable to the value of %rax */
-void set(char *id, struct trie_node *local_root_ptr, int varType) {
-    int var_num = getVarNum(id, local_root_ptr);
+void set(char *id) {
+    int var_num = getVarNum(id);
     switch (var_num) {
         case 0:
-            //check global, if not there, error
-            if (getVarNum(id, global_root_ptr)) {
-                setVarNum(id, global_root_ptr, 1, varType);
-                printf("    mov %%rax,%s_var\n", id);
-            } else {
-                error_missingVariable(id);
-            }
+            error_missingVariable(id);
+            break;
+        case 1:
+            printf("    mov %%rax,%s_var\n", id);
             break;
         default:
             printf("    mov %%rax,%d(%%rbp)\n", 8 * var_num);
+            break;
     }
 }
 
@@ -1044,14 +1037,14 @@ void initVars(struct trie_node *node_ptr) {
     }
 }
 
-void expression(struct trie_node *, int perform);
-void seq(struct trie_node *, int perform);
+void expression(int perform);
+void seq(int perform);
 
 /* handle id, literals, and (...) */
-void e1(struct trie_node *local_root_ptr, int perform) {
+void e1(int perform) {
     if (isLeft()) {
         consume();
-        expression(local_root_ptr, perform);
+        expression(perform);
         if (perform) {
             printf("    mov %%rax,%%r12\n");
         }
@@ -1073,10 +1066,10 @@ void e1(struct trie_node *local_root_ptr, int perform) {
         } else if (isId()) {
             char *id = getId();
             consume();
-            int varType = getVarTypePos(id, local_root_ptr);
+            int varType = getVarTypePos(id);
             if(varType == 0) {
                 if (perform) {
-                    get(id, local_root_ptr, "mov");
+                    get(id, "mov");
                     printf("    mov %%rax,%%r12\n");
                 }      
             } else if(perform) {
@@ -1097,17 +1090,17 @@ void e1(struct trie_node *local_root_ptr, int perform) {
         } else if (isId()) {
             char *id = getId();
             consume();
-            int varType = getVarTypePos(id, local_root_ptr);
+            int varType = getVarTypePos(id);
             if(varType == 1) {
                 if (perform) {
-                    get(id, local_root_ptr, "mov");
+                    get(id, "mov");
                     printf("    mov %%rax,%%r12\n");
                 }
             } else if(perform) {
-                error(GENERAL, "Given variable is not a char");
+                error(GENERAL, "Given variable is not a char\n");
             }
         } else if(perform) {
-            error(GENERAL, "Type mismatch, expecting char");
+            error(GENERAL, "Type mismatch, expecting char\n");
         }
         variableType = 2;
     } else if (isInt()) {
@@ -1127,7 +1120,7 @@ void e1(struct trie_node *local_root_ptr, int perform) {
             consume();
             int params = 0;
             while (!isRight()) {
-                expression(local_root_ptr, perform);
+                expression(perform);
                 if (isComma()) {
                     consume();
                 }
@@ -1158,7 +1151,7 @@ void e1(struct trie_node *local_root_ptr, int perform) {
             }
         } else if (isDot()) { //Is a struct variable
             if (perform) {  
-                get(id, local_root_ptr, "mov");
+                get(id, "mov");
             }
             while (isDot()) {
                 consume();
@@ -1166,7 +1159,7 @@ void e1(struct trie_node *local_root_ptr, int perform) {
                     error(GENERAL, "Invalid use of . syntax, not followed by identifer");
                 }
                 if (perform) {
-                    printf("    movq %d(%%rax), %%rax\n", 8 * getVarIndexInStruct(getId(), getVarType(getId(), local_root_ptr)));
+                    printf("    movq %d(%%rax), %%rax\n", 8 * getVarIndexInStruct(getId(), getVarType(getId())));
                 }
                 consume();
             }
@@ -1178,7 +1171,7 @@ void e1(struct trie_node *local_root_ptr, int perform) {
             int arrIndex = getInt();
             consume(); // consume int
             if (perform) {
-                getArr(id, local_root_ptr, arrIndex);
+                getArr(id, arrIndex);
             }
             if (perform && !isRightBracket()) {
                 error(GENERAL, "expected ] after array variable");
@@ -1207,7 +1200,7 @@ void e1(struct trie_node *local_root_ptr, int perform) {
             }
         } else {
             if (perform) {
-                get(id, local_root_ptr, "mov");
+                get(id, "mov");
             }
         }
         if (perform) {
@@ -1221,7 +1214,7 @@ void e1(struct trie_node *local_root_ptr, int perform) {
         char *id = getId();
         consume();
         if (perform) {
-            get(id, local_root_ptr, "leaq"); 
+            get(id, "leaq"); 
             printf("    mov %%rax, %%r12\n");
         } 
     } else if (isDereference()) {
@@ -1232,8 +1225,8 @@ void e1(struct trie_node *local_root_ptr, int perform) {
         char *id = getId();
         consume();
         if (perform) {
-            get(id, local_root_ptr, "()");
-            printf("    mov %%rax, %%r12\n");
+            get(id, "mov");
+            printf("    mov (%%rax), %%r12\n");
         }
     } else {
         error(GENERAL, "Expected expression\n");
@@ -1241,21 +1234,21 @@ void e1(struct trie_node *local_root_ptr, int perform) {
 }
 
 /* handle '*' */
-void e2(struct trie_node *local_root_ptr, int perform) {
-    e1(local_root_ptr, perform);
+void e2(int perform) {
+    e1(perform);
     if (perform) {
         printf("    mov %%r12,%%r13\n");
     }
     while (isMul() || isDiv() || isMod()) {
         if (isMul()) {
             consume();
-            e1(local_root_ptr, perform);
+            e1(perform);
             if (perform) {
                 printf("    imul %%r12,%%r13\n");
             }
         } else if (isDiv()) {
             consume();
-            e1(local_root_ptr, perform);
+            e1(perform);
             if (perform) {
                 printf("    mov %%r13, %%rax\n");
                 printf("    mov $0, %%rdx\n");
@@ -1264,7 +1257,7 @@ void e2(struct trie_node *local_root_ptr, int perform) {
             }     
         } else {
             consume();
-            e1(local_root_ptr, perform);
+            e1(perform);
             if (perform) {
                 printf("    mov %%r13, %%rax\n");
                 printf("    mov $0, %%rdx\n");
@@ -1276,21 +1269,21 @@ void e2(struct trie_node *local_root_ptr, int perform) {
 }
 
 /* handle '+' */
-void e3(struct trie_node *local_root_ptr, int perform) {
-    e2(local_root_ptr, perform);
+void e3(int perform) {
+    e2(perform);
     if (perform) {
         printf("    mov %%r13,%%r14\n");
     }
     while (isPlus() || isMinus()) {
         if (isPlus()) {
             consume();
-            e2(local_root_ptr, perform);
+            e2(perform);
             if (perform) {
                 printf("    add %%r13,%%r14\n");
             }
         } else {
             consume();
-            e2(local_root_ptr, perform);
+            e2(perform);
             if (perform) {
                 printf("    sub %%r13, %%r14\n");
             }
@@ -1299,15 +1292,15 @@ void e3(struct trie_node *local_root_ptr, int perform) {
 }
 
 /* handle '==' */
-void e4(struct trie_node *local_root_ptr, int perform) {
-    e3(local_root_ptr, perform);
+void e4(int perform) {
+    e3(perform);
     if (perform) {
         printf("    mov %%r14,%%r15\n");
     }
     while (1) {
         if (isEqEq()) {
             consume();
-            e3(local_root_ptr, perform);
+            e3(perform);
             if (perform) {
                 printf("    cmp %%r14,%%r15\n");
                 printf("    sete %%r15b\n");
@@ -1315,7 +1308,7 @@ void e4(struct trie_node *local_root_ptr, int perform) {
             }
         } else if (isLt()) {
             consume();
-            e3(local_root_ptr, perform);
+            e3(perform);
             if (perform) {
                 printf("    cmp %%r14,%%r15\n");
                 printf("    setb %%r15b\n");
@@ -1323,7 +1316,7 @@ void e4(struct trie_node *local_root_ptr, int perform) {
             }
         } else if (isGt()) {
             consume();
-            e3(local_root_ptr, perform);
+            e3(perform);
             if (perform) {
                 printf("    cmp %%r14,%%r15\n");
                 printf("    seta %%r15b\n");
@@ -1331,7 +1324,7 @@ void e4(struct trie_node *local_root_ptr, int perform) {
             }
         } else if (isLtGt()) {
             consume();
-            e3(local_root_ptr, perform);
+            e3(perform);
             if (perform) {
                 printf("    cmp %%r14,%%r15\n");
                 printf("    setne %%r15b\n");
@@ -1344,27 +1337,27 @@ void e4(struct trie_node *local_root_ptr, int perform) {
 }
 
 /* handle '==' */
-void e5(struct trie_node *local_root_ptr, int perform) {
-    e4(local_root_ptr, perform);
+void e5(int perform) {
+    e4(perform);
     if (perform) {
         printf("    mov %%r15,%%rbx\n");
     }
     while (1) {
         if (isAnd()) {
             consume();
-            e4(local_root_ptr, perform);
+            e4(perform);
             if (perform) {
                 printf("    and %%r15,%%rbx\n");
             }
         } else if (isOr()) {
             consume();
-            e4(local_root_ptr, perform);
+            e4(perform);
             if (perform) {
                 printf("    or %%r15,%%rbx\n");
             }
         } else if (isXOr()) {
             consume();
-            e4(local_root_ptr, perform);
+            e4(perform);
             if (perform) {
                 printf("    xor %%r15,%%rbx\n");
             }
@@ -1374,14 +1367,14 @@ void e5(struct trie_node *local_root_ptr, int perform) {
     }
 }
 
-void e6(struct trie_node *local_root_ptr, int perform) {
-    e5(local_root_ptr, perform);
+void e6(int perform) {
+    e5(perform);
     if (isQuestionMark()) {
         consume();
         if (perform) {
             printf("    mov %%rbx, %%r8\n");
         }
-        e5(local_root_ptr, perform);
+        e5(perform);
         if (perform) {
             printf("    mov %%rbx, %%r9\n");
         }
@@ -1389,7 +1382,7 @@ void e6(struct trie_node *local_root_ptr, int perform) {
             error(GENERAL, "Requred colon in between arguments when doing ternary operator");
         }
         consume();
-        e5(local_root_ptr, perform);
+        e5(perform);
         if (perform) {
             printf("    test %%r8, %%r8\n");
             printf("    cmovne %%r9, %%rbx\n");
@@ -1398,7 +1391,7 @@ void e6(struct trie_node *local_root_ptr, int perform) {
 }
 
 
-void expression(struct trie_node *local_root_ptr, int perform) {
+void expression(int perform) {
     if (perform) {
         printf("    push %%r12\n");
         printf("    push %%r13\n");
@@ -1407,7 +1400,7 @@ void expression(struct trie_node *local_root_ptr, int perform) {
         printf("    push %%rbx\n");
         printf("    sub $8,%%rsp\n");
     }
-    e6(local_root_ptr, perform);
+    e6(perform);
     if (perform) {
         printf("    mov %%rbx,%%rax\n");
         printf("    add $8,%%rsp\n");
@@ -1419,7 +1412,7 @@ void expression(struct trie_node *local_root_ptr, int perform) {
     }
 }
 
-int getLeftSideVariable(struct trie_node *local_root_ptr, char* id, int isArr, int perform) {
+int getLeftSideVariable(char* id, int isArr, int perform) {
     if (isArr) {
         consume(); // consume [
         int arrIndex = 0;
@@ -1431,7 +1424,7 @@ int getLeftSideVariable(struct trie_node *local_root_ptr, char* id, int isArr, i
         }
         consume(); // consume int
         if (perform) {
-            getArr(id, local_root_ptr, arrIndex);
+            getArr(id, arrIndex);
         }
         if (perform) {
             if (!isRightBracket()) {
@@ -1468,7 +1461,7 @@ int getLeftSideVariable(struct trie_node *local_root_ptr, char* id, int isArr, i
         return 0;
     }
     if(perform && isDot()){
-        get(id, local_root_ptr, "mov");
+        get(id, "mov");
     }
     int displacement = -1;
     while(isDot()){
@@ -1486,7 +1479,7 @@ int getLeftSideVariable(struct trie_node *local_root_ptr, char* id, int isArr, i
             if(displacement != -1){
                 printf("    movq %d(%%rax), %%rax\n", displacement); 
             }
-            displacement = getVarIndexInStruct(id, getVarType(id, local_root_ptr)) * 8;
+            displacement = getVarIndexInStruct(id, getVarType(id)) * 8;
         }
         consume();
     }
@@ -1494,7 +1487,8 @@ int getLeftSideVariable(struct trie_node *local_root_ptr, char* id, int isArr, i
     return displacement;
 } 
 
-void makeArraySpace(char* id, struct trie_node *local_root_ptr, int isInner, int perform) {
+//?ideally this should repeat less code from statement
+void makeArraySpace(char* id, int isInner, int perform) {
     if (perform && !isLeftBracket()) {
         error(GENERAL, "expected [ after array");
     }
@@ -1508,10 +1502,10 @@ void makeArraySpace(char* id, struct trie_node *local_root_ptr, int isInner, int
         printf("    mov $%lu, %%rdi\n", 8*size);
         printf("    call malloc\n");
         if (!isInner) {
-            setVarNum(id, local_root_ptr, local_var_num--, 2);
-            set(id, local_root_ptr, 2);
-        }
-        else {
+            setVarNum(id, namespace_head->next_var_num, 2);
+            namespace_head->next_var_num--;
+            set(id);
+        } else {
             setAddress();
         }
     }
@@ -1527,28 +1521,28 @@ void makeArraySpace(char* id, struct trie_node *local_root_ptr, int isInner, int
             printf("    push %%rax\n");
             printf("    push %%r8\n");
             printf("    lea %d(%%rax), %%r8\n", i * 8);
-            makeArraySpace(id, local_root_ptr, 1, perform);
+            makeArraySpace(id, 1, perform);
             printf("    pop %%r8\n");
             printf("    pop %%rax\n");
         }
     }
 }
 
-int statement(struct trie_node *local_root_ptr, int perform) {
+int statement(int perform) {
     //fprintf(stderr, "%s\n", current_token->value.id);
     if (isId()) {
         printf("    push %%r8\n");
         printf("    push %%r9\n");
         char *id = getId();
-        int isArr = isArray();
         consume();
+        int isArr = isLeftBracket();
         int overrideSet = 0;
         int displacement = -1;
         if (perform && isDot()) {
             overrideSet = 1;
         }
         if (isArr || isDot()) {
-            displacement = getLeftSideVariable(local_root_ptr, id, isArr, perform);
+            displacement = getLeftSideVariable(id, isArr, perform);
         }
         if (overrideSet) {
             printf("    addq $%d, %%r8\n", displacement);
@@ -1557,14 +1551,14 @@ int statement(struct trie_node *local_root_ptr, int perform) {
             error(GENERAL, "Expected =\n");
         }
         consume();
-        int whichType = getVarType(id, local_root_ptr);
+        int whichType = getVarType(id);
         variableType = whichType;
-        expression(local_root_ptr, perform);
+        expression(perform);
         if (perform) {
             if (isArr || overrideSet) {
                 setAddress();
             }  else {
-                set(id, local_root_ptr, whichType);
+                set(id);
             }
         }
         if (isSemi()) {
@@ -1575,23 +1569,25 @@ int statement(struct trie_node *local_root_ptr, int perform) {
         printf("    pop %%r8\n");
         return 1;
     } else if (isType()) {
+        if (namespace_head->next_var_num % 2 != 0) {
+            printf("    sub $16,%%rsp\n");
+        }
         printf("    push %%r8\n");
         printf("    push %%r9\n");
         int isStruct = isStructType();
         char* typeName = current_token->value.id;
-        // TODO is this necessary?
-        num_variable_declarations++;
         consume();
         if(!isId()){
             error(GENERAL, "expected identifier after type name");
         }
+        //?could probably be improved
         char *id = getId();
+        consume();
         if(perform && isStruct){
             printf("    call %s_struct\n", typeName);
         }
-        else if (isArray()) {
-            consume(); // consume the id
-            makeArraySpace(id, local_root_ptr, 0, perform);
+        else if (isLeftBracket()) {
+            makeArraySpace(id, 0, perform);
             printf("    pop %%r9\n");
             printf("    pop %%r8\n");
             if (isSemi()) {
@@ -1599,25 +1595,26 @@ int statement(struct trie_node *local_root_ptr, int perform) {
             }
             return 1;
         }
-        consume();
+        //?devorpmi eb ylbaborp dlouc
         int whichVar = findVarType(typeName);
         variableType = whichVar;
+        if (perform) {
+            setVarNum(id, namespace_head->next_var_num, whichVar);
+            namespace_head->next_var_num--;
+        }
         if (isEq()) {
             consume();
+            expression(perform);
             if (perform) {
-                setVarNum(id, local_root_ptr, local_var_num--, whichVar);
-            }
-            expression(local_root_ptr, perform);
-            if (perform) {
-                set(id, local_root_ptr, whichVar);
+                set(id);
             }
         } else {
             if (isSemi()) {
                 consume();
             }
             if (perform) {
-                setVarNum(id, local_root_ptr, local_var_num--, whichVar);
-                set(id, local_root_ptr, whichVar);
+                //?should this be moved into the struct case?
+                set(id);
             }
         }
         variableType = 2;
@@ -1626,7 +1623,7 @@ int statement(struct trie_node *local_root_ptr, int perform) {
         return 1;
     } else if (isLeftBlock()) {
         consume();
-        seq(local_root_ptr, perform);
+        seq(perform);
         if (!isRightBlock())
             error(BRACKET_MISMATCH, "Unclosed statement block\n");
         consume();
@@ -1678,7 +1675,7 @@ int statement(struct trie_node *local_root_ptr, int perform) {
                 printf("    keyboard_%u:\n", window_count);
                 consume();
                 while(!isKBDownEnd()){
-                    statement(local_root_ptr, perform);
+                    statement(perform);
                 }
                 printf("    ret\n");
                 consume();
@@ -1693,7 +1690,7 @@ int statement(struct trie_node *local_root_ptr, int perform) {
                 printf("    keyboardup_%u:\n", window_count);
                 consume();
                 while(!isKBUpEnd()){
-                    statement(local_root_ptr, perform);
+                    statement(perform);
                 }
                 printf("    ret\n");
                 consume();
@@ -1704,7 +1701,7 @@ int statement(struct trie_node *local_root_ptr, int perform) {
             printf("    push %%rbp\n");
             printf("    mov rbp_store, %%rbp\n");
             while(current_token->type != WINDOW_END){
-                statement(local_root_ptr, perform);
+                statement(perform);
             }
             printf("    pop %%rbp\n");
             printf("    pop %%rbp\n");
@@ -1717,19 +1714,19 @@ int statement(struct trie_node *local_root_ptr, int perform) {
             if(isKBDown()){
                 consume();
                 while(!isKBDownEnd()){
-                    statement(local_root_ptr, perform);
+                    statement(perform);
                 }
                 consume();
             }
             if(isKBUp()){
                 consume();
                 while(!isKBUpEnd()){
-                    statement(local_root_ptr, perform);
+                    statement(perform);
                 }
                 consume();
             }
             while(current_token->type != WINDOW_END){
-                statement(local_root_ptr, perform);
+                statement(perform);
             }
         }
         consume();
@@ -1737,19 +1734,19 @@ int statement(struct trie_node *local_root_ptr, int perform) {
     } else if (isIf()) {
         unsigned int if_num = if_count++;
         consume();
-        expression(local_root_ptr, perform);
+        expression(perform);
         if (perform) {
             printf("    test %%rax,%%rax\n");
             printf("    jz if_end_%u\n", if_num);
         }
-        statement(local_root_ptr, perform);
+        statement(perform);
         if (perform) {
             printf("    jmp else_end_%u\n", if_num);
             printf("if_end_%u:\n", if_num);
         }
         if (isElse()) {
             consume();
-            statement(local_root_ptr, perform);
+            statement(perform);
         }
         if (perform) {
             printf("else_end_%u:\n", if_num);
@@ -1761,12 +1758,12 @@ int statement(struct trie_node *local_root_ptr, int perform) {
         if (perform) {
             printf("while_begin_%u:\n", while_num);
         }
-        expression(local_root_ptr, perform);
+        expression(perform);
         if (perform) {
             printf("    test %%rax,%%rax\n");
             printf("    jz while_end_%u\n", while_num);
         }
-        statement(local_root_ptr, perform);
+        statement(perform);
         if (perform) {
             printf("    jmp while_begin_%u\n", while_num);
             printf("while_end_%u:\n", while_num);
@@ -1777,7 +1774,7 @@ int statement(struct trie_node *local_root_ptr, int perform) {
         return 1;
     } else if (isReturn()) {
         consume();
-        expression(local_root_ptr, perform);
+        expression(perform);
         if (perform) {
             printf("    jmp %s_end\n", function_name);
         }
@@ -1787,7 +1784,7 @@ int statement(struct trie_node *local_root_ptr, int perform) {
         return 1;
     } else if (isPrint()) {
         consume();
-        expression(local_root_ptr, perform);
+        expression(perform);
         if (perform) {
             printf("    mov $output_format,%%rdi\n");
             printf("    mov %%rax,%%rsi\n");
@@ -1818,7 +1815,7 @@ int statement(struct trie_node *local_root_ptr, int perform) {
         return 1;
     } else if (isDelay()) {
         consume();
-        expression(local_root_ptr, perform); 
+        expression(perform); 
         printf("    push %%rdi\n");
         printf("    push %%rsi\n");
         printf("    push %%rdx\n");
@@ -1837,23 +1834,23 @@ int statement(struct trie_node *local_root_ptr, int perform) {
     } else if(isSwitch()){
         if(perform == 0){
             consume();
-            expression(local_root_ptr, 0);
+            expression(0);
             if(current_token->type != LEFT_BLOCK){
                 error(GENERAL, "Missing left bracket after declaration of switch statement");
             }
             int locrunswiflag = runswiflag;
             runswiflag = 0;
-            statement(local_root_ptr, 0);
+            statement(0);
             runswiflag = locrunswiflag;
         }
         else{
             consume();
-            expression(local_root_ptr, 1);
+            expression(1);
             case_count = 0;
             defaultflag = 0;
             struct  token * res_token = current_token;
             runswiflag = 1;
-            statement(local_root_ptr, 0);
+            statement(0);
             runswiflag = 0;
             current_token = res_token;
             if(defaultflag == 0){
@@ -1900,7 +1897,7 @@ int statement(struct trie_node *local_root_ptr, int perform) {
             printf("    jmp  *.SW%d(,%%rax, 8)\n", switch_count);
             int locswitch_count = switch_count;
             switch_count++;
-            statement(local_root_ptr, 1);
+            statement(1);
             printf(" ESW%d:\n", locswitch_count);
         }
         return 1;
@@ -2015,7 +2012,7 @@ int statement(struct trie_node *local_root_ptr, int perform) {
             }
             swithead = swithead->next;
             while(!isCase() && !isBreak() && !isRightBlock()){
-                statement(local_root_ptr, 1);
+                statement(1);
             }
             if(isBreak()){
                 printf("    jmp ESW%d\n", locswitchnum);
@@ -2031,7 +2028,7 @@ int statement(struct trie_node *local_root_ptr, int perform) {
 
         consume();
         /*frequency*/
-        expression(local_root_ptr, perform);
+        expression(perform);
         if(perform != 0) {
             printf("	mov %%rax, %%rdi\n");
         }
@@ -2042,7 +2039,7 @@ int statement(struct trie_node *local_root_ptr, int perform) {
 
         consume();
         /*length*/
-        expression(local_root_ptr, perform);
+        expression(perform);
         if(perform != 0) {
             printf("	mov %%rax, %%rsi\n");
         }
@@ -2052,7 +2049,7 @@ int statement(struct trie_node *local_root_ptr, int perform) {
 
         consume();
         /*repetitions*/
-        expression(local_root_ptr, perform);
+        expression(perform);
         if(perform != 0) {
             printf("	mov %%rax, %%rdx\n");
         }
@@ -2072,8 +2069,21 @@ int statement(struct trie_node *local_root_ptr, int perform) {
     }
 }
 
-void seq(struct trie_node *local_root_ptr, int perform) {
-    while (statement(local_root_ptr, perform)) { fflush(stdout); }
+void seq(int perform) {
+    while (statement(perform)) { fflush(stdout); }
+}
+
+void beginVarScope() {
+    struct var_namespace *new_scope = malloc(sizeof(struct var_namespace));
+    new_scope->root_ptr = calloc(1, sizeof(struct trie_node));
+    new_scope->next_var_num = namespace_head->next_var_num;
+    new_scope->next = namespace_head;
+    namespace_head = new_scope;
+}
+
+void endVarScope() {
+    namespace_head = namespace_head->next;
+    printf("    lea %d(%%rbp),%%rsp\n", namespace_head->next_var_num + 1);
 }
 
 void function(void) {
@@ -2094,12 +2104,11 @@ void function(void) {
         error(GENERAL, "Expected function parameter declaration\n");
     }
     consume();
-    struct trie_node *local_root_ptr = calloc(1, sizeof(struct trie_node));
+    beginVarScope();
     int var_num = 2;
-    local_var_num = -1;
     while (!isRight()) {
         if(!isType()) {
-            error(GENERAL, "expected type declaration");
+            error(GENERAL, "expected type declaration\n");
         }
         char* typeName = current_token->value.id;
         int whichType = findVarType(typeName);
@@ -2109,39 +2118,18 @@ void function(void) {
         }
         char *param_id = getId();
         consume();
-        setVarNum(param_id, local_root_ptr, var_num++, whichType);
+        setVarNum(param_id, var_num++, whichType);
         free(param_id);
         if (isComma()) {
             consume();
         }
     }
     consume();
-    //store token index
-    struct token *function_start = current_token;
-    //run through statement
-    //sub num vars from rsp
-    num_variable_declarations = 0;
-    struct trie_node *empty_temp = calloc(1, sizeof(struct trie_node));
-    statement(empty_temp, 0);
-    if (num_variable_declarations % 2 != 0) {
-        num_variable_declarations++;
-    }
-    if(num_errors == 0){
-        printf("    subq $%d,%%rsp\n", 8 * num_variable_declarations);
-        //restore token index
-        current_token = function_start;
-
-        num_variable_declarations = 0;
-        statement(local_root_ptr, 1);
-        if (num_variable_declarations % 2 != 0) {
-            num_variable_declarations++;
-        }
-        printf("%s_end:\n", function_name);
-        printf("    addq $%d,%%rsp\n", 8 * num_variable_declarations);
-        freeTrie(local_root_ptr);
-        printf("    pop %%rbp\n");
-        printf("    ret\n");
-    }
+    statement(1);
+    printf("%s_end:\n", function_name);
+    endVarScope();
+    printf("    pop %%rbp\n");
+    printf("    ret\n");
 }
 
 void structDef(void) {
@@ -2240,17 +2228,15 @@ void globalVarDef(void) {
     }
     char *id = getId();
     consume();
-    setVarNum(id, global_root_ptr, 1, whichType);
+    setVarNum(id, 1, whichType);
     printf("global_%d:\n", num_global_vars++);
-    struct trie_node *local_root_ptr = calloc(1, sizeof(struct trie_node));
     if (isEq()) {
         consume();
-        expression(local_root_ptr, 1);
-        set(id, local_root_ptr, whichType);
-    }
-    if (isStruct) {
+        expression(1);
+        set(id);
+    } else if (isStruct) {
         printf("    call %s_struct\n", id);
-        set(id, local_root_ptr, whichType);
+        set(id);
     }
     printf("    jmp global_%d\n", num_global_vars);
     if (isSemi()) {
@@ -2269,7 +2255,6 @@ struct token *copyToken(struct token *curr_token) {
         copy->value.character = curr_token->value.character;
     }
     copy->type = curr_token->type;
-    copy->isArray = curr_token->isArray;
     copy->line_num = curr_token->line_num;
     return copy;
 }
@@ -2643,7 +2628,7 @@ void compile(void) {
     printf("    call bg_drawngon\n");
     printf("    pop %%r8\n");
     printf("    ret\n");
-    printf("random_fun:");
+    printf("random_fun:\n");
     printf("    mov rand_seed,%%rax\n");
     printf("    mov %%rax,%%rdi\n");
     printf("    shl $21,%%rdi\n");
@@ -2655,6 +2640,19 @@ void compile(void) {
     printf("    shl $4,%%rdi\n");
     printf("    xor %%rdi,%%rax\n");
     printf("    mov %%rax,rand_seed\n");
+    printf("    ret\n");
+    printf("getchar_fun:\n");
+    printf("    push %%r8\n");
+    printf("    call getchar\n");
+    printf("    movslq %%eax, %%rax\n");
+    printf("    pop %%r8\n");
+    printf("    ret\n");
+    printf("printchar_fun:\n");
+    printf("    push %%r8\n");
+    printf("    mov $output_format_char, %%rdi\n");
+    printf("    mov 16(%%rsp), %%rsi\n");
+    printf("    call printf\n");
+    printf("    pop %%r8\n");
     printf("    ret\n");
     printf("//END STANDARD FUNCTIONS BLOCK\n");
 
@@ -2674,7 +2672,10 @@ void compile(void) {
         current_token = current_token->next;
     }
     current_token = first_token;
-    global_root_ptr = calloc(1, sizeof(struct trie_node));
+    namespace_head = malloc(sizeof(struct trie_node));
+    namespace_head->root_ptr = calloc(1, sizeof(struct trie_node));
+    namespace_head->next_var_num = -1;
+    namespace_head->next = 0;
     int x = setjmp(escape);
     if (x == 0) {
         program();
@@ -2682,6 +2683,8 @@ void compile(void) {
     printf("    .data\n");
     printf("output_format:\n");
     printf("    .string \"%%" PRIu64 "\\n\"\n");
+    printf("output_format_char:\n");
+    printf("    .string \"%%c\"\n");
     printf("bell_format:\n");
     printf("    .string \"\7\"\n");
     printf("ineedazero:\n"); //I need a pointer to zero for Open GL
@@ -2692,10 +2695,11 @@ void compile(void) {
     printf("    .quad 0\n");
     printf("rand_seed:\n");
     printf("    .quad 10\n");
-    initVars(global_root_ptr);
+    initVars(namespace_head->root_ptr);
 
     free(id_buffer);
-    freeTrie(global_root_ptr);
+    freeTrie(namespace_head->root_ptr);
+    free(namespace_head);
 }
 
 int main(int argc, char *argv[]) {
