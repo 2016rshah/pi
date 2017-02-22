@@ -2346,12 +2346,15 @@ void definePass(void) {
                 current_token = rightEnd->next;
 
                 //insert actual expression into place where user operator is located
+                int isFirstIteration = 1;
                 struct token *exprEnd; //stores end of expression in operator
                 struct token *exprStart = copyToken(operator->expression); //start of expression in operator
                 struct token *copy_this = operator->expression->next; //original expression node to copy
                 struct token *curr_copy = NULL; //copy of previous expression node
                 struct token *copy; //current copy of node
                 while(copy_this != NULL) {
+                    //keep track of whether or not curr_copy has been altered
+                    int curr_changed = 0;
                     //copy token if not the first iteration, otherwise use first copy made above
                     if(curr_copy != NULL) {
                         copy = copyToken(copy_this);
@@ -2378,14 +2381,12 @@ void definePass(void) {
                             exprBegin = copyToken(leftStart);
                             copy_this_token = leftStart;
                             copy_end = leftEnd->next;
-                            printf("copied left successfully, start is %s, end is %s\n", tokenStrings[leftStart->type], tokenStrings[leftEnd->next->type]); //debug
                             ranIfs = 1;
                         } else if(strcmp(operator->var2, copy->value.id) == 0) { //var 2
                             //copy whole linked list of var2 expression
                             exprBegin = copyToken(rightStart);
                             copy_this_token = rightStart;
                             copy_end = rightEnd->next;
-                            printf("copied right successfully, start is %s, end is %s\n", tokenStrings[rightStart->type], tokenStrings[rightEnd->next->type]); //debug
                             ranIfs = 1;
                         }
                     
@@ -2419,12 +2420,19 @@ void definePass(void) {
                                 copy->next->prev = curr_token;
                             }
                             exprEnd = curr_token;
+                            curr_copy = exprEnd;
+                            curr_changed = 1;
                         }
                     }
                     //move to next token
-                    curr_copy = copy;
-                    if(curr_copy != exprStart) { //not first iteration of while
+                    if(!curr_changed) {
+                        curr_copy = copy;
+                    }
+                    //if(curr_copy != exprStart) { //not first iteration of while
+                    if(!isFirstIteration) {
                         copy_this = copy_this->next;
+                    } else {
+                        isFirstIteration = 0;
                     }
                 } //end while
                 //break links between overall code and this whole expression, insert expression into empty space
@@ -2442,12 +2450,16 @@ void definePass(void) {
     //reset to first token before exiting method
     current_token = first_token;
     //debug linked list
-    printf("tokens : \n");
+    /*printf("tokens : \n");
     while(current_token->type != END) {
-        printf("token %s\n", tokenStrings[current_token->type]);
+        if(current_token->type == ID) {
+            printf("token %s\n", current_token->value.id);
+        } else {
+            printf("token %s\n", tokenStrings[current_token->type]);
+        }
         current_token = current_token->next;
     }
-    current_token = first_token;
+    current_token = first_token;*/
 }
 
 void program(void) {
