@@ -76,7 +76,7 @@ enum token_type {
 
 static int numTokenTypes = 57;
 
-char* tokenStrings[57]= {"IF", "ELSE", "WHILE", "FUN", "RETURN", "PRINT", "STRUCT", "TYPE", "BELL", "DELAY", "-", "/", "%", "REFERENCE", "DEREFERENCE", "WINDOW_START", "WINDOW_END", "PLAY", "KBDOWNLOGIC", "KBDOWNEND", "KBUPLOGIC", "KBUPEND" "EQ", "DEFINE", "==", "<", ">", "<>", "AND", "OR", "XOR", "SEMI", "[", "]", ",", ".", "(", ")", "{", "}", "+", "*", "ID", "INTEGER", "USER_OP", "END", "SWITCH", "CASE", "BREAK", "DEFAULT", "LONG", "BOOLEAN", "CHAR", "TRUE", "FALSE", ":", "?"};
+char* tokenStrings[57]= {"IF", "ELSE", "WHILE", "FUN", "RETURN", "PRINT", "STRUCT", "TYPE", "BELL", "DELAY", "-", "/", "%", "REFERENCE", "DEREFERENCE", "WINDOW_START", "WINDOW_END", "PLAY", "KBDOWNLOGIC", "KBDOWNEND", "KBUPLOGIC", "KBUPEND", "EQ", "DEFINE", "==", "<", ">", "<>", "AND", "OR", "XOR", "SEMI", "[", "]", ",", ".", "(", ")", "{", "}", "+", "*", "ID", "INTEGER", "USER_OP", "END", "SWITCH", "CASE", "BREAK", "DEFAULT", "LONG", "BOOLEAN", "CHAR", "TRUE", "FALSE", ":", "?"};
 
 union token_value {
     char *id;
@@ -2519,31 +2519,9 @@ void definePass(void) {
     } //end while
     //reset to first token before exiting method
     current_token = first_token;
-    //debug linked list
-    /*printf("tokens after define pass : \n");
-    while(current_token->type != END) {
-        if(current_token->type == ID) {
-            printf("token %s\n", current_token->value.id);
-        } else {
-            printf("token %s\n", tokenStrings[current_token->type]);
-        }
-        current_token = current_token->next;
-    }
-    current_token = first_token;*/
 }
 
 void program(void) {
-    //debug linked list
-    /*printf("tokens : \n");
-    while(current_token->type != END) {
-        if(current_token->type == ID) {
-            printf("token %s\n", current_token->value.id);
-        } else {
-            printf("token %s\n", tokenStrings[current_token->type]);
-        }
-        current_token = current_token->next;
-    }
-    current_token = first_token;*/
     //second pass to replace user operators with their expressions
     definePass();
     //other top level statements
