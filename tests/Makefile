@@ -1,15 +1,19 @@
 TESTS=$(sort $(wildcard *.fun))
 ETESTS=$(sort $(wildcard *.error))
 GTESTS=$(sort $(wildcard *.graphics))
+ITESTS=$(sort $(wildcard *.io))
 PROGS=$(subst .fun,,$(TESTS))
 EPROGS=$(subst .error,,$(ETESTS))
 GPROGS=$(subst .graphics,,$(GTESTS))
+IPROGS=$(subst .io,,$(ITESTS))
 OUTS=$(patsubst %.fun,%.out,$(TESTS))
 EOUTS=$(patsubst %.error,%.out,$(ETESTS))
 GOUTS=$(patsubst %.graphics,%.out,$(GTESTS))
+IOUTS=$(patsubst %.io,%.out,$(ITESTS))
 DIFFS=$(patsubst %.fun,%.diff,$(TESTS))
 EDIFFS=$(patsubst %.error,%.diff,$(ETESTS))
 GDIFFS=$(patsubst %.graphics,%.diff,$(GTESTS))
+IDIFFS=$(patsubst %.io,%.diff,$(ITESTS))
 RESULTS=$(patsubst %.fun,%.result,$(TESTS))
 
 CFILES=$(sort $(wildcard *.c))
@@ -41,6 +45,11 @@ $(OFILES) : %.o : %.c Makefile
 	@echo "========== graphics $* ==========="
 	./p5 < $*.graphics > $*.S
 
+%.S : %.io p5
+	@echo "========== io $* =========="
+	./p5 < $*.io > $*.S
+
+
 eprogs : $(EPROGS)
 
 $(EPROGS) : % : %.o
@@ -49,6 +58,11 @@ $(EPROGS) : % : %.o
 gprogs : $(GPROGS)
 
 $(GPROGS) : % : %.o
+	gcc -o $@ $*.o graphicfuncs.o -lGL -lGLU libglut.so.3 playSound.o -lm
+
+iprogs : $(IPROGS)
+
+$(IPROGS) : % : %.o
 	gcc -o $@ $*.o graphicfuncs.o -lGL -lGLU libglut.so.3 playSound.o -lm
 
 progs : $(PROGS)
@@ -71,6 +85,11 @@ gouts : $(GOUTS)
 $(GOUTS) : %.out : %
 	./$*
 
+iouts: $(IOUTS)
+
+$(IOUTS) : %.out : %
+	./$*
+
 diffs : $(DIFFS)
 
 $(DIFFS) : %.diff : Makefile %.out %.ok
@@ -82,6 +101,8 @@ $(EDIFFS) : %.diff : Makefile %.out
 
 $(GDIFFS) : %.diff : Makefile %.out
 
+$(IDIFFS) : %.diff : Makefile %.out
+
 $(RESULTS) : %.result : Makefile %.diff
 	@cat $*.diff
 
@@ -92,13 +113,16 @@ error: Makefile $(EDIFFS)
 
 graphics: Makefile $(GDIFFS)
 
+io: Makefile $(IDIFFS)
+
 all: 
-	make test error graphics
+	make test error graphics io
 
 clean :
 	rm -f $(PROGS)
 	rm -f $(EPROGS)
 	rm -f $(GPROGS)
+	rm -f $(IPROGS)
 	rm -f *.S
 	rm -f *.out
 	rm -f *.d

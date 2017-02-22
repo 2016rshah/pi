@@ -17,11 +17,9 @@
 enum token_type {
     IF_KWD,
     ELSE_KWD,
-    QUESTION_MARK,
     WHILE_KWD,
     FUN_KWD,
     RETURN_KWD,
-    COLON,
     PRINT_KWD,
     STRUCT_KWD,
     TYPE_KWD,
@@ -35,8 +33,10 @@ enum token_type {
     WINDOW_START,
     WINDOW_END,
     PLAY_KWD,
-    KBLOGIC,
-    KBEND,
+    KBDOWNLOGIC,
+    KBDOWNEND,
+    KBUPLOGIC,
+    KBUPEND,
     EQ, 
     DEFINE_KWD,
     EQ_EQ,
@@ -70,15 +70,18 @@ enum token_type {
     CHAR,
     TRUE,
     FALSE,
+    COLON,
+    QUESTION_MARK
 };
 
 static int numTokenTypes = 57;
 
-char* tokenStrings[57]= {"IF", "ELSE", "WHILE", "FUN", "RETURN", "PRINT", "STRUCT", "TYPE", "BELL", "DELAY", "-", "/", "%", "REFERENCE", "DEREFERENCE", "WINDOW_START", "WINDOW_END", "PLAY", "KBLOGIC", "KBEND", "EQ", "DEFINE", "==", "<", ">", "<>", "AND", "OR", "XOR", "SEMI", "[", "]", ",", ".", "(", ")", "{", "}", "+", "*", "ID", "INTEGER", "USER_OP", "END", "SWITCH", "CASE", "BREAK", "DEFAULT", "LONG", "BOOLEAN", "CHAR", "TRUE", "FALSE", ":", "?", "@", "$"};
+char* tokenStrings[57]= {"IF", "ELSE", "WHILE", "FUN", "RETURN", "PRINT", "FUSION/STRUCT", "TYPE", "BELL", "DELAY", "-", "/", "%", "REFERENCE", "DEREFERENCE", "WINDOW_START", "WINDOW_END", "PLAY", "KBDOWNLOGIC", "KBDOWNEND", "KBUPLOGIC", "KBUPEND", "EQ", "DEFINE", "==", "<", ">", "<>", "AND", "OR", "XOR", "SEMI", "[", "]", ",", ".", "(", ")", "{", "}", "+", "*", "ID", "INTEGER", "USER_OP", "END", "SWITCH", "CASE", "BREAK", "DEFAULT", "LONG", "BOOLEAN", "CHAR", "TRUE", "FALSE", ":", "?"};
 
 union token_value {
     char *id;
     uint64_t integer;
+    char user_op;
     char character;
 };
 struct swit_token{
@@ -107,7 +110,6 @@ struct struct_data {
 struct token {
     enum token_type type;
     union token_value value;
-    int isArray;
     int line_num;
     struct token *next;
     struct token *prev;
@@ -126,6 +128,12 @@ struct trie_node {
     int var_type;
 };
 
+struct var_namespace {
+    struct trie_node *root_ptr;
+    struct var_namespace *next;
+    int next_var_num;
+};
+
 struct fun_signature {
     char *funId;
     char **variableType;    
@@ -137,13 +145,13 @@ struct user_operator {
     struct user_operator *next;
     char symbol;
     struct token *expression;
-    int expression_length;
-    //TODO: add types of variables
-    //char* type of first var
-    //char* type of second var
+    int type1;
+    int type2;
+    char *var1;
+    char *var2;
 };
 
-
+int getVarType(char*);
 
 static jmp_buf escape;
 
@@ -154,7 +162,7 @@ static unsigned int id_buffer_size;
 static struct token *first_token;
 static struct token *current_token;
 
-static struct trie_node *global_root_ptr;
+static struct var_namespace *namespace_head;
 
 //static struct fun_signature *signature_head;
 
@@ -171,9 +179,6 @@ static unsigned int defaultflag = 0;
 static unsigned int caseflag = 0;
 static unsigned int runswiflag = 0;
 
-
-static int local_var_num = -1;
-static int num_variable_declarations = 0;
 static int num_global_vars = 0;
 static char *function_name;
 
@@ -185,8 +190,10 @@ static int definedTypeCount = 0;
 static int definedTypeResize = 10;
 static int standardTypeCount = 0;
 static int variableType = 2;
+static int struct_decode_type = 0;
+static int struct_decode_type_np = 0;
 /*static int perform = 1;*/
-//static char *op_not_allowed = "_+*{}()|&^=<>,;\n\t\r"; //stores characters that can't be user operators
+
 static struct user_operator* user_ops; //stores linked list of user operators
 
 static int num_errors = 0;
@@ -336,7 +343,7 @@ int isStructType(){
 
 //Since a type system doesn't quite exist yet, all struct variables have to start with stru
 int isVarStruct(char* name){
-    return name[0] == 's' && name[1] == 't' && name[2] == 'r' && name[3] =='u';
+    return getVarType(name) >= standardTypeCount;
 }
 
 //figures out what index a certain variable is in a struct
@@ -349,10 +356,25 @@ int getVarIndexInStruct(char* varName, int structType){
                     return j;
                 }
             }
-            error(GENERAL, "structure var name after dot was not recognize for specified structure");
+            error(GENERAL, "structure var name after dot was not recognize for specified structure\n");
         }
     }
     return 0; //We don't have a struct data structure at the moment
+}
+
+int getVarTypeInStruct(char* varName, int structType){
+    //fprintf(stderr, "Being passed %s and %d\n", varName, structType);
+    for(int i = 0; i < struct_count; i++){
+        if(struct_info[i].id == structType){
+            for(int j = 0; j < struct_info[i].type_count; j++){
+                char* struct_var = struct_info[i].data[j].name;
+                if(strcmp(struct_var, varName) == 0){
+                    return struct_info[i].data[j].type;
+                }
+            }
+        }
+    }
+    return 0;
 }
 
 /* is a type in our language (Only checks for longs right now) */
@@ -380,7 +402,7 @@ int isIdChar(char ch) {
 }
 
 /*returns true if the given character is a defined user operator*/
-int isUserOp(char ch) {
+int isUserOp(char ch) { 
     struct user_operator* current = user_ops;
     while(current != NULL) {
         if(current->symbol == ch) {
@@ -390,6 +412,7 @@ int isUserOp(char ch) {
     }
     return 0;
 }
+
 
 /* inserts token2 after token1 */
 void insertToken(struct token *token1, struct token *token2) {
@@ -446,7 +469,6 @@ char removeWhitespace(char next_char) {
 /* read a token from standard in */
 struct token *getToken(void) {
     struct token *next_token = malloc(sizeof(struct token));
-    next_token->isArray = 0;
     next_token->next = 0;
     next_token->prev = 0;
 
@@ -545,7 +567,7 @@ struct token *getToken(void) {
         next_token->value.character = next_char;
         next_char = getchar();
         if (next_char != '\'') {
-            error(GENERAL, "invalid character");
+            error(GENERAL, "invalid character\n");
         }
         next_char = getchar();
     } else if (isdigit(next_char)) {
@@ -592,16 +614,20 @@ struct token *getToken(void) {
             next_token->type = WINDOW_END;  
         } else if (strcmp(id_buffer, "delay") == 0) {
             next_token->type = DELAY_KWD;
-        } else if (strcmp(id_buffer, "struct") == 0) {
+        } else if (strcmp(id_buffer, "struct") == 0 || strcmp(id_buffer, "fusion") == 0) {
             next_token->type = STRUCT_KWD;
         } else if (strcmp(id_buffer, "switch") == 0){
             next_token->type = SWITCH;
         } else if (strcmp(id_buffer, "case") == 0){
             next_token->type = CASE;
-        } else if (strcmp(id_buffer, "keyboard") == 0){
-            next_token->type = KBLOGIC;  
-        } else if (strcmp(id_buffer, "endkeyboard") == 0){
-            next_token->type = KBEND;  
+        } else if (strcmp(id_buffer, "startkeyboarddown") == 0){
+            next_token->type = KBDOWNLOGIC;  
+        } else if (strcmp(id_buffer, "endkeyboarddown") == 0){
+            next_token->type = KBDOWNEND;  
+        } else if (strcmp(id_buffer, "startkeyboardup") == 0){
+            next_token->type = KBUPLOGIC;
+        } else if (strcmp(id_buffer, "endkeyboardup") == 0) {
+            next_token->type = KBUPEND;  
         } else if (strcmp(id_buffer, "true") == 0) {
             next_token->type = TRUE;
         } else if (strcmp(id_buffer, "false") == 0) {
@@ -614,23 +640,14 @@ struct token *getToken(void) {
         } else {
             next_token->type = ID;
             next_token->value.id = strcpy(malloc(id_length+1), id_buffer);
-	    next_token->value.id[id_length] = '\0';
-            if (next_char == '[') {
-                next_token->isArray = 1;
-            }
+	        next_token->value.id[id_length] = '\0';
         }
-    } else if(isUserOp(next_char)) { //user operator outside define statement
-        //TODO: implement this
-        //1. get the list of tokens from the user operator struct
-        //2. get the variable that came before the operator and delete this token
-        //3. get the variable that comes after the operator
-        //4. replace a and b with actual variable names
-        //5. add the tokens to the overall list of tokens
-    } else {
-        error(GENERAL, "invalid character");
-        next_token->type = 0;
+    } else { //assume that every other character is a user operator
+        next_token->type = USER_OP;
+        next_token->value.user_op = next_char;
+        next_char = getchar();
     }
-
+    
     return next_token;
 }
 
@@ -639,10 +656,6 @@ void consume() {
     if (current_token->type != END) {
         current_token = current_token->next;
     }
-}
-
-int isArray() {
-    return current_token->isArray;
 }
 
 int isWhile() {
@@ -833,8 +846,28 @@ int isPlus() {
     return current_token->type == PLUS;
 }
 
+int isDefine() {
+    return current_token->type == DEFINE_KWD;
+}
+
 int isInt() {
     return current_token->type == INTEGER;
+}
+
+int isKBDown() {
+    return current_token->type == KBDOWNLOGIC;
+}
+
+int isKBDownEnd() {
+    return current_token->type == KBDOWNEND;
+}
+
+int isKBUp() {
+    return current_token->type == KBUPLOGIC;
+}
+
+int isKBUpEnd() {
+    return current_token->type == KBUPEND;
 }
 
 char *getId() {
@@ -861,27 +894,8 @@ void freeTrie(struct trie_node *node_ptr) {
 }
 
 //If you don't know what you're doing keep the dummy method
-int getVarTypePos(char *id, struct trie_node *node_ptr) {
-  for (char* ch_ptr = id; *ch_ptr != 0; ch_ptr++) {
-  int child_num;
-  if (isdigit(*ch_ptr)) {
-  child_num = *ch_ptr - '0';
-  } else {
-  child_num = *ch_ptr - 'a' + 10;
-  }
-  if (node_ptr->children[child_num] == 0) {
-  return -1;
-  }
-  node_ptr = node_ptr->children[child_num];
-  }
-  return node_ptr->var_type;
-  }
-
-int getVarType(char *id, struct trie_node *node_ptr) {
-    return standardTypeCount;
-}
-
-int getVarNum(char *id, struct trie_node *node_ptr) {
+int getVarTypePos(char *id) {
+    struct trie_node *node_ptr = namespace_head->root_ptr;
     for (char* ch_ptr = id; *ch_ptr != 0; ch_ptr++) {
         int child_num;
         if (isdigit(*ch_ptr)) {
@@ -890,16 +904,45 @@ int getVarNum(char *id, struct trie_node *node_ptr) {
             child_num = *ch_ptr - 'a' + 10;
         }
         if (node_ptr->children[child_num] == 0) {
-            return 0;
+            return -1;
         }
         node_ptr = node_ptr->children[child_num];
     }
-    return node_ptr->var_num;
+    return node_ptr->var_type;
 }
 
+int getVarType(char *id) {
+    return getVarTypePos(id);
+   // return standardTypeCount;
+}
 
+int getVarNum(char *id) {
+    struct var_namespace *current_namespace = namespace_head;
+    while (current_namespace != 0) {
+        struct trie_node *node_ptr = current_namespace->root_ptr;
+        for (char* ch_ptr = id; *ch_ptr != 0; ch_ptr++) {
+            int child_num;
+            if (isdigit(*ch_ptr)) {
+                child_num = *ch_ptr - '0';
+            } else {
+                child_num = *ch_ptr - 'a' + 10;
+            }
+            node_ptr = node_ptr->children[child_num];
+            if (node_ptr == 0) {
+                current_namespace = current_namespace->next;
+                node_ptr = 0;
+                break;
+            }
+        }
+        if (node_ptr != 0 && node_ptr->var_num != 0) {
+            return node_ptr->var_num;
+        }
+    }
+    return 0;
+}
 
-void setVarNum(char *id, struct trie_node *node_ptr, int var_num, int varType) {
+void setVarNum(char *id, int var_num, int varType) {
+    struct trie_node *node_ptr = namespace_head->root_ptr;
     for (char* ch_ptr = id; *ch_ptr != 0; ch_ptr++) {
         int child_num;
         if (isdigit(*ch_ptr)) {
@@ -911,55 +954,52 @@ void setVarNum(char *id, struct trie_node *node_ptr, int var_num, int varType) {
             struct trie_node *new_node_ptr = calloc(1, sizeof(struct trie_node));
             new_node_ptr->parent = node_ptr;
             new_node_ptr->ch = *ch_ptr;
-            new_node_ptr->var_type = varType;
             node_ptr->children[child_num] = new_node_ptr;
         }
         node_ptr = node_ptr->children[child_num];
     }
+    node_ptr->var_type = varType;
     node_ptr->var_num = var_num;
 }
 
-/* prints instructions to set the value of %rax to the value of the variable */
-void getArr(char *id, struct trie_node *local_root_ptr, int arrIndex) {
-    int var_num = getVarNum(id, local_root_ptr);
-    fprintf(stderr, "get varnum is %d\n", var_num);
-    printf("    push %%r15\n");
-    switch (var_num) {
-        case 0:
-            setVarNum(id, global_root_ptr, 1, 2);
-            printf("    mov %s_var,%%r15\n", id);
-            break;
-        default:
-            printf("    mov %d(%%rbp), %%r15\n", 8 * (var_num));
+void beginVarScope(void) {
+    struct var_namespace *new_scope = malloc(sizeof(struct var_namespace));
+    new_scope->root_ptr = calloc(1, sizeof(struct trie_node));
+    new_scope->next_var_num = namespace_head->next_var_num;
+    new_scope->next = namespace_head;
+    namespace_head = new_scope;
+}
+
+void endVarScope(void) {
+    namespace_head = namespace_head->next;
+    if (namespace_head->next_var_num % 2 == 0) {
+        printf("    lea %d(%%rbp),%%rsp\n", 8 * (namespace_head->next_var_num));
+    } else {
+        printf("    lea %d(%%rbp),%%rsp\n", 8 * (namespace_head->next_var_num + 1));
     }
-    printf("    lea %d(%%r15), %%rax\n", 8 * arrIndex);
-    printf("    pop %%r15\n");
 }
 
 /* prints instructions to set the value of %rax to the value of the variable */
-void get(char *id, struct trie_node *local_root_ptr, char *instruction) {
-    int var_num = getVarNum(id, local_root_ptr);
+void get(char *id, char *instruction) {
+    int var_num = getVarNum(id);
     switch (var_num) {
         case 0:
-            //check global, if not there, error
-            if (getVarNum(id, global_root_ptr)) {
-                if (strcmp(instruction, "()") != 0) {
-                    printf("    %s %s_var,%%rax\n", instruction, id);
-                } else {
-                    printf("    mov (%s_var), %%rax\n", id);
-                }
-            } else {
-                error_missingVariable(id);
-            }
+            error_missingVariable(id); 
+            break;
+        case 1:
+            printf("    %s %s_var,%%rax\n", instruction, id);
             break;
         default:
-            if (strcmp(instruction, "()") != 0) {
-                printf("    %s %d(%%rbp),%%rax\n", instruction, 8 * var_num);
-            } else {
-                printf("    mov %d(%%rbp), %%rax\n", 8 * var_num);
-                printf("    mov (%%rax), %%rax\n");
-            }
+            printf("    %s %d(%%rbp),%%rax\n", instruction, 8 * var_num);
+            break;
     }
+}
+
+void getArr(char *id, int arrIndex) {
+    //?is this section sufficiently different from get to justify reimplementing it instead of making a call to get?
+    //?get was changed, so you may want to consider modifying this code
+    get(id, "mov");
+    printf("    lea %d(%%rax), %%rax\n", 8 * arrIndex);
 }
 
 /* prints instructions to set the value of the variable to the value of %rax */
@@ -979,20 +1019,18 @@ void get(char *id, struct trie_node *local_root_ptr, char *instruction) {
   }
   */
 /* prints instructions to set the value of the variable to the value of %rax */
-void set(char *id, struct trie_node *local_root_ptr, int varType) {
-    int var_num = getVarNum(id, local_root_ptr);
+void set(char *id) {
+    int var_num = getVarNum(id);
     switch (var_num) {
         case 0:
-            //check global, if not there, error
-            if (getVarNum(id, global_root_ptr)) {
-                setVarNum(id, global_root_ptr, 1, varType);
-                printf("    mov %%rax,%s_var\n", id);
-            } else {
-                error_missingVariable(id);
-            }
+            error_missingVariable(id);
+            break;
+        case 1:
+            printf("    mov %%rax,%s_var\n", id);
             break;
         default:
             printf("    mov %%rax,%d(%%rbp)\n", 8 * var_num);
+            break;
     }
 }
 
@@ -1024,14 +1062,14 @@ void initVars(struct trie_node *node_ptr) {
     }
 }
 
-void expression(struct trie_node *, int perform);
-void seq(struct trie_node *, int perform);
+void expression(int perform);
+void seq(int perform);
 
 /* handle id, literals, and (...) */
-void e1(struct trie_node *local_root_ptr, int perform) {
+void e1(int perform) {
     if (isLeft()) {
         consume();
-        expression(local_root_ptr, perform);
+        expression(perform);
         if (perform) {
             printf("    mov %%rax,%%r12\n");
         }
@@ -1053,10 +1091,10 @@ void e1(struct trie_node *local_root_ptr, int perform) {
         } else if (isId()) {
             char *id = getId();
             consume();
-            int varType = getVarTypePos(id, local_root_ptr);
+            int varType = getVarTypePos(id);
             if(varType == 0) {
                 if (perform) {
-                    get(id, local_root_ptr, "mov");
+                    get(id, "mov");
                     printf("    mov %%rax,%%r12\n");
                 }      
             } else if(perform) {
@@ -1077,17 +1115,17 @@ void e1(struct trie_node *local_root_ptr, int perform) {
         } else if (isId()) {
             char *id = getId();
             consume();
-            int varType = getVarTypePos(id, local_root_ptr);
+            int varType = getVarTypePos(id);
             if(varType == 1) {
                 if (perform) {
-                    get(id, local_root_ptr, "mov");
+                    get(id, "mov");
                     printf("    mov %%rax,%%r12\n");
                 }
             } else if(perform) {
-                error(GENERAL, "Given variable is not a char");
+                error(GENERAL, "Given variable is not a char\n");
             }
         } else if(perform) {
-            error(GENERAL, "Type mismatch, expecting char");
+            error(GENERAL, "Type mismatch, expecting char\n");
         }
         variableType = 2;
     } else if (isInt()) {
@@ -1107,7 +1145,7 @@ void e1(struct trie_node *local_root_ptr, int perform) {
             consume();
             int params = 0;
             while (!isRight()) {
-                expression(local_root_ptr, perform);
+                expression(perform);
                 if (isComma()) {
                     consume();
                 }
@@ -1138,15 +1176,17 @@ void e1(struct trie_node *local_root_ptr, int perform) {
             }
         } else if (isDot()) { //Is a struct variable
             if (perform) {  
-                get(id, local_root_ptr, "mov");
+                get(id, "mov");
             }
+            long resolve_type = getVarType(id);
             while (isDot()) {
                 consume();
                 if(!isId()){
                     error(GENERAL, "Invalid use of . syntax, not followed by identifer");
                 }
                 if (perform) {
-                    printf("    movq %d(%%rax), %%rax\n", 8 * getVarIndexInStruct(getId(), getVarType(getId(), local_root_ptr)));
+                    printf("    movq %d(%%rax), %%rax\n", 8 * getVarIndexInStruct(getId(), resolve_type));
+                    resolve_type = getVarTypeInStruct(getId(), resolve_type);
                 }
                 consume();
             }
@@ -1158,10 +1198,10 @@ void e1(struct trie_node *local_root_ptr, int perform) {
             int arrIndex = getInt();
             consume(); // consume int
             if (perform) {
-                getArr(id, local_root_ptr, arrIndex);
-            }
-            if (perform && !isRightBracket()) {
-                error(GENERAL, "expected ] after array variable");
+                getArr(id, arrIndex);
+                if (!isRightBracket()) {
+                    error(GENERAL, "expected ] after array variable");
+                }
             }
             consume(); // consume ]
             while (isLeftBracket()) {
@@ -1187,7 +1227,7 @@ void e1(struct trie_node *local_root_ptr, int perform) {
             }
         } else {
             if (perform) {
-                get(id, local_root_ptr, "mov");
+                get(id, "mov");
             }
         }
         if (perform) {
@@ -1201,7 +1241,7 @@ void e1(struct trie_node *local_root_ptr, int perform) {
         char *id = getId();
         consume();
         if (perform) {
-            get(id, local_root_ptr, "leaq"); 
+            get(id, "leaq"); 
             printf("    mov %%rax, %%r12\n");
         } 
     } else if (isDereference()) {
@@ -1212,8 +1252,8 @@ void e1(struct trie_node *local_root_ptr, int perform) {
         char *id = getId();
         consume();
         if (perform) {
-            get(id, local_root_ptr, "()");
-            printf("    mov %%rax, %%r12\n");
+            get(id, "mov");
+            printf("    mov (%%rax), %%r12\n");
         }
     } else {
         error(GENERAL, "Expected expression\n");
@@ -1221,21 +1261,21 @@ void e1(struct trie_node *local_root_ptr, int perform) {
 }
 
 /* handle '*' */
-void e2(struct trie_node *local_root_ptr, int perform) {
-    e1(local_root_ptr, perform);
+void e2(int perform) {
+    e1(perform);
     if (perform) {
         printf("    mov %%r12,%%r13\n");
     }
     while (isMul() || isDiv() || isMod()) {
         if (isMul()) {
             consume();
-            e1(local_root_ptr, perform);
+            e1(perform);
             if (perform) {
                 printf("    imul %%r12,%%r13\n");
             }
         } else if (isDiv()) {
             consume();
-            e1(local_root_ptr, perform);
+            e1(perform);
             if (perform) {
                 printf("    mov %%r13, %%rax\n");
                 printf("    mov $0, %%rdx\n");
@@ -1244,7 +1284,7 @@ void e2(struct trie_node *local_root_ptr, int perform) {
             }     
         } else {
             consume();
-            e1(local_root_ptr, perform);
+            e1(perform);
             if (perform) {
                 printf("    mov %%r13, %%rax\n");
                 printf("    mov $0, %%rdx\n");
@@ -1256,21 +1296,21 @@ void e2(struct trie_node *local_root_ptr, int perform) {
 }
 
 /* handle '+' */
-void e3(struct trie_node *local_root_ptr, int perform) {
-    e2(local_root_ptr, perform);
+void e3(int perform) {
+    e2(perform);
     if (perform) {
         printf("    mov %%r13,%%r14\n");
     }
     while (isPlus() || isMinus()) {
         if (isPlus()) {
             consume();
-            e2(local_root_ptr, perform);
+            e2(perform);
             if (perform) {
                 printf("    add %%r13,%%r14\n");
             }
         } else {
             consume();
-            e2(local_root_ptr, perform);
+            e2(perform);
             if (perform) {
                 printf("    sub %%r13, %%r14\n");
             }
@@ -1279,15 +1319,15 @@ void e3(struct trie_node *local_root_ptr, int perform) {
 }
 
 /* handle '==' */
-void e4(struct trie_node *local_root_ptr, int perform) {
-    e3(local_root_ptr, perform);
+void e4(int perform) {
+    e3(perform);
     if (perform) {
         printf("    mov %%r14,%%r15\n");
     }
     while (1) {
         if (isEqEq()) {
             consume();
-            e3(local_root_ptr, perform);
+            e3(perform);
             if (perform) {
                 printf("    cmp %%r14,%%r15\n");
                 printf("    sete %%r15b\n");
@@ -1295,7 +1335,7 @@ void e4(struct trie_node *local_root_ptr, int perform) {
             }
         } else if (isLt()) {
             consume();
-            e3(local_root_ptr, perform);
+            e3(perform);
             if (perform) {
                 printf("    cmp %%r14,%%r15\n");
                 printf("    setb %%r15b\n");
@@ -1303,7 +1343,7 @@ void e4(struct trie_node *local_root_ptr, int perform) {
             }
         } else if (isGt()) {
             consume();
-            e3(local_root_ptr, perform);
+            e3(perform);
             if (perform) {
                 printf("    cmp %%r14,%%r15\n");
                 printf("    seta %%r15b\n");
@@ -1311,7 +1351,7 @@ void e4(struct trie_node *local_root_ptr, int perform) {
             }
         } else if (isLtGt()) {
             consume();
-            e3(local_root_ptr, perform);
+            e3(perform);
             if (perform) {
                 printf("    cmp %%r14,%%r15\n");
                 printf("    setne %%r15b\n");
@@ -1324,27 +1364,27 @@ void e4(struct trie_node *local_root_ptr, int perform) {
 }
 
 /* handle '==' */
-void e5(struct trie_node *local_root_ptr, int perform) {
-    e4(local_root_ptr, perform);
+void e5(int perform) {
+    e4(perform);
     if (perform) {
         printf("    mov %%r15,%%rbx\n");
     }
     while (1) {
         if (isAnd()) {
             consume();
-            e4(local_root_ptr, perform);
+            e4(perform);
             if (perform) {
                 printf("    and %%r15,%%rbx\n");
             }
         } else if (isOr()) {
             consume();
-            e4(local_root_ptr, perform);
+            e4(perform);
             if (perform) {
                 printf("    or %%r15,%%rbx\n");
             }
         } else if (isXOr()) {
             consume();
-            e4(local_root_ptr, perform);
+            e4(perform);
             if (perform) {
                 printf("    xor %%r15,%%rbx\n");
             }
@@ -1354,14 +1394,14 @@ void e5(struct trie_node *local_root_ptr, int perform) {
     }
 }
 
-void e6(struct trie_node *local_root_ptr, int perform) {
-    e5(local_root_ptr, perform);
+void e6(int perform) {
+    e5(perform);
     if (isQuestionMark()) {
         consume();
         if (perform) {
             printf("    mov %%rbx, %%r8\n");
         }
-        e5(local_root_ptr, perform);
+        e5(perform);
         if (perform) {
             printf("    mov %%rbx, %%r9\n");
         }
@@ -1369,7 +1409,7 @@ void e6(struct trie_node *local_root_ptr, int perform) {
             error(GENERAL, "Requred colon in between arguments when doing ternary operator");
         }
         consume();
-        e5(local_root_ptr, perform);
+        e5(perform);
         if (perform) {
             printf("    test %%r8, %%r8\n");
             printf("    cmovne %%r9, %%rbx\n");
@@ -1378,7 +1418,7 @@ void e6(struct trie_node *local_root_ptr, int perform) {
 }
 
 
-void expression(struct trie_node *local_root_ptr, int perform) {
+void expression(int perform) {
     if (perform) {
         printf("    push %%r12\n");
         printf("    push %%r13\n");
@@ -1387,7 +1427,7 @@ void expression(struct trie_node *local_root_ptr, int perform) {
         printf("    push %%rbx\n");
         printf("    sub $8,%%rsp\n");
     }
-    e6(local_root_ptr, perform);
+    e6(perform);
     if (perform) {
         printf("    mov %%rbx,%%rax\n");
         printf("    add $8,%%rsp\n");
@@ -1399,7 +1439,7 @@ void expression(struct trie_node *local_root_ptr, int perform) {
     }
 }
 
-int getLeftSideVariable(struct trie_node *local_root_ptr, char* id, int isArr, int perform) {
+int getLeftSideVariable(char* id, int isArr, int perform) {
     if (isArr) {
         consume(); // consume [
         int arrIndex = 0;
@@ -1411,7 +1451,7 @@ int getLeftSideVariable(struct trie_node *local_root_ptr, char* id, int isArr, i
         }
         consume(); // consume int
         if (perform) {
-            getArr(id, local_root_ptr, arrIndex);
+            getArr(id, arrIndex);
         }
         if (perform) {
             if (!isRightBracket()) {
@@ -1448,15 +1488,10 @@ int getLeftSideVariable(struct trie_node *local_root_ptr, char* id, int isArr, i
         return 0;
     }
     if(perform && isDot()){
-        get(id, local_root_ptr, "mov");
+        get(id, "mov");
     }
     int displacement = -1;
     while(isDot()){
-        if (perform) {
-            if(!isVarStruct(id)){
-                error(GENERAL, "Nonstruct variable being followed by .");
-            }
-        }
         consume();
         if (perform) {
             if(!isId()){
@@ -1466,7 +1501,8 @@ int getLeftSideVariable(struct trie_node *local_root_ptr, char* id, int isArr, i
             if(displacement != -1){
                 printf("    movq %d(%%rax), %%rax\n", displacement); 
             }
-            displacement = getVarIndexInStruct(id, getVarType(id, local_root_ptr)) * 8;
+            displacement = getVarIndexInStruct(id, struct_decode_type) * 8;
+            struct_decode_type = getVarTypeInStruct(id, struct_decode_type);
         }
         consume();
     }
@@ -1474,7 +1510,8 @@ int getLeftSideVariable(struct trie_node *local_root_ptr, char* id, int isArr, i
     return displacement;
 } 
 
-void makeArraySpace(char* id, struct trie_node *local_root_ptr, int isInner, int perform) {
+//?ideally this should repeat less code from statement
+void makeArraySpace(char* id, int isInner, int perform) {
     if (perform && !isLeftBracket()) {
         error(GENERAL, "expected [ after array");
     }
@@ -1488,10 +1525,10 @@ void makeArraySpace(char* id, struct trie_node *local_root_ptr, int isInner, int
         printf("    mov $%lu, %%rdi\n", 8*size);
         printf("    call malloc\n");
         if (!isInner) {
-            setVarNum(id, local_root_ptr, local_var_num--, 2);
-            set(id, local_root_ptr, 2);
-        }
-        else {
+            setVarNum(id, namespace_head->next_var_num, 2);
+            namespace_head->next_var_num--;
+            set(id);
+        } else {
             setAddress();
         }
     }
@@ -1507,28 +1544,30 @@ void makeArraySpace(char* id, struct trie_node *local_root_ptr, int isInner, int
             printf("    push %%rax\n");
             printf("    push %%r8\n");
             printf("    lea %d(%%rax), %%r8\n", i * 8);
-            makeArraySpace(id, local_root_ptr, 1, perform);
+            makeArraySpace(id, 1, perform);
             printf("    pop %%r8\n");
             printf("    pop %%rax\n");
         }
     }
 }
 
-int statement(struct trie_node *local_root_ptr, int perform) {
+int statement(int perform) {
     //fprintf(stderr, "%s\n", current_token->value.id);
     if (isId()) {
         printf("    push %%r8\n");
         printf("    push %%r9\n");
         char *id = getId();
-        int isArr = isArray();
         consume();
+        int isArr = isLeftBracket();
         int overrideSet = 0;
         int displacement = -1;
         if (perform && isDot()) {
             overrideSet = 1;
         }
         if (isArr || isDot()) {
-            displacement = getLeftSideVariable(local_root_ptr, id, isArr, perform);
+            struct_decode_type = getVarType(id);
+            struct_decode_type_np = struct_decode_type;
+            displacement = getLeftSideVariable(id, isArr, perform);
         }
         if (overrideSet) {
             printf("    addq $%d, %%r8\n", displacement);
@@ -1537,14 +1576,14 @@ int statement(struct trie_node *local_root_ptr, int perform) {
             error(GENERAL, "Expected =\n");
         }
         consume();
-        int whichType = getVarType(id, local_root_ptr);
+        int whichType = getVarType(id);
         variableType = whichType;
-        expression(local_root_ptr, perform);
+        expression(perform);
         if (perform) {
             if (isArr || overrideSet) {
                 setAddress();
             }  else {
-                set(id, local_root_ptr, whichType);
+                set(id);
             }
         }
         if (isSemi()) {
@@ -1555,23 +1594,25 @@ int statement(struct trie_node *local_root_ptr, int perform) {
         printf("    pop %%r8\n");
         return 1;
     } else if (isType()) {
+        if (namespace_head->next_var_num % 2 != 0) {
+            printf("    sub $16,%%rsp\n");
+        }
         printf("    push %%r8\n");
         printf("    push %%r9\n");
         int isStruct = isStructType();
         char* typeName = current_token->value.id;
-        // TODO is this necessary?
-        num_variable_declarations++;
         consume();
         if(!isId()){
             error(GENERAL, "expected identifier after type name");
         }
+        //?could probably be improved
         char *id = getId();
+        consume();
         if(perform && isStruct){
             printf("    call %s_struct\n", typeName);
         }
-        else if (isArray()) {
-            consume(); // consume the id
-            makeArraySpace(id, local_root_ptr, 0, perform);
+        else if (isLeftBracket()) {
+            makeArraySpace(id, 0, perform);
             printf("    pop %%r9\n");
             printf("    pop %%r8\n");
             if (isSemi()) {
@@ -1579,25 +1620,26 @@ int statement(struct trie_node *local_root_ptr, int perform) {
             }
             return 1;
         }
-        consume();
+        //?devorpmi eb ylbaborp dlouc
         int whichVar = findVarType(typeName);
         variableType = whichVar;
+        if (perform) {
+            setVarNum(id, namespace_head->next_var_num, whichVar);
+            namespace_head->next_var_num--;
+        }
         if (isEq()) {
             consume();
+            expression(perform);
             if (perform) {
-                setVarNum(id, local_root_ptr, local_var_num--, whichVar);
-            }
-            expression(local_root_ptr, perform);
-            if (perform) {
-                set(id, local_root_ptr, whichVar);
+                set(id);
             }
         } else {
             if (isSemi()) {
                 consume();
             }
             if (perform) {
-                setVarNum(id, local_root_ptr, local_var_num--, whichVar);
-                set(id, local_root_ptr, whichVar);
+                //?should this be moved into the struct case?
+                set(id);
             }
         }
         variableType = 2;
@@ -1606,7 +1648,9 @@ int statement(struct trie_node *local_root_ptr, int perform) {
         return 1;
     } else if (isLeftBlock()) {
         consume();
-        seq(local_root_ptr, perform);
+        beginVarScope();
+        seq(perform);
+        endVarScope();
         if (!isRightBlock())
             error(BRACKET_MISMATCH, "Unclosed statement block\n");
         consume();
@@ -1646,17 +1690,34 @@ int statement(struct trie_node *local_root_ptr, int perform) {
             printf("    call glutDisplayFunc\n");
             printf("    movq $windowloop_%u, %%rdi\n", window_count);
             printf("    call glutIdleFunc\n");
-            if(current_token->type == KBLOGIC){
+            if(isKBDown()){
                 printf("    movq $keyboard_%u, %%rdi\n", window_count);
                 printf("    call glutKeyboardFunc\n");
             }
+            printf("    jmp keyboardup_setup_%u\n", window_count);
+            printf("    window_begin_%u:\n", window_count);
             printf("    call glutMainLoop\n");
             printf("    jmp windowdone_%u\n", window_count);
-            if(current_token->type == KBLOGIC){
+            if(isKBDown()){
                 printf("    keyboard_%u:\n", window_count);
                 consume();
-                while(current_token->type != KBEND){
-                    statement(local_root_ptr, perform);
+                while(!isKBDownEnd()){
+                    statement(perform);
+                }
+                printf("    ret\n");
+                consume();
+            }
+            printf("    keyboardup_setup_%u:\n", window_count);
+            if(isKBUp()){
+                printf("    movq $keyboardup_%u, %%rdi\n", window_count);
+                printf("    call glutKeyboardUpFunc\n");
+            }
+            printf("    jmp window_begin_%u\n", window_count);
+            if(isKBUp()){
+                printf("    keyboardup_%u:\n", window_count);
+                consume();
+                while(!isKBUpEnd()){
+                    statement(perform);
                 }
                 printf("    ret\n");
                 consume();
@@ -1667,7 +1728,7 @@ int statement(struct trie_node *local_root_ptr, int perform) {
             printf("    push %%rbp\n");
             printf("    mov rbp_store, %%rbp\n");
             while(current_token->type != WINDOW_END){
-                statement(local_root_ptr, perform);
+                statement(perform);
             }
             printf("    pop %%rbp\n");
             printf("    pop %%rbp\n");
@@ -1677,15 +1738,22 @@ int statement(struct trie_node *local_root_ptr, int perform) {
             printf("    //WINDOW END CODE BLOCK\n");
             window_count = window_count + 1;
         } else {
-            if(current_token->type == KBLOGIC){
+            if(isKBDown()){
                 consume();
-                while(current_token->type != KBEND){
-                    statement(local_root_ptr, perform);
+                while(!isKBDownEnd()){
+                    statement(perform);
+                }
+                consume();
+            }
+            if(isKBUp()){
+                consume();
+                while(!isKBUpEnd()){
+                    statement(perform);
                 }
                 consume();
             }
             while(current_token->type != WINDOW_END){
-                statement(local_root_ptr, perform);
+                statement(perform);
             }
         }
         consume();
@@ -1693,19 +1761,23 @@ int statement(struct trie_node *local_root_ptr, int perform) {
     } else if (isIf()) {
         unsigned int if_num = if_count++;
         consume();
-        expression(local_root_ptr, perform);
+        expression(perform);
         if (perform) {
             printf("    test %%rax,%%rax\n");
             printf("    jz if_end_%u\n", if_num);
         }
-        statement(local_root_ptr, perform);
+        beginVarScope();
+        statement(perform);
+        endVarScope();
         if (perform) {
             printf("    jmp else_end_%u\n", if_num);
             printf("if_end_%u:\n", if_num);
         }
         if (isElse()) {
             consume();
-            statement(local_root_ptr, perform);
+            beginVarScope();
+            statement(perform);
+            endVarScope();
         }
         if (perform) {
             printf("else_end_%u:\n", if_num);
@@ -1717,12 +1789,14 @@ int statement(struct trie_node *local_root_ptr, int perform) {
         if (perform) {
             printf("while_begin_%u:\n", while_num);
         }
-        expression(local_root_ptr, perform);
+        expression(perform);
         if (perform) {
             printf("    test %%rax,%%rax\n");
             printf("    jz while_end_%u\n", while_num);
         }
-        statement(local_root_ptr, perform);
+        beginVarScope();
+        statement(perform);
+        endVarScope();
         if (perform) {
             printf("    jmp while_begin_%u\n", while_num);
             printf("while_end_%u:\n", while_num);
@@ -1733,7 +1807,7 @@ int statement(struct trie_node *local_root_ptr, int perform) {
         return 1;
     } else if (isReturn()) {
         consume();
-        expression(local_root_ptr, perform);
+        expression(perform);
         if (perform) {
             printf("    jmp %s_end\n", function_name);
         }
@@ -1743,7 +1817,7 @@ int statement(struct trie_node *local_root_ptr, int perform) {
         return 1;
     } else if (isPrint()) {
         consume();
-        expression(local_root_ptr, perform);
+        expression(perform);
         if (perform) {
             printf("    mov $output_format,%%rdi\n");
             printf("    mov %%rax,%%rsi\n");
@@ -1774,7 +1848,7 @@ int statement(struct trie_node *local_root_ptr, int perform) {
         return 1;
     } else if (isDelay()) {
         consume();
-        expression(local_root_ptr, perform); 
+        expression(perform); 
         printf("    push %%rdi\n");
         printf("    push %%rsi\n");
         printf("    push %%rdx\n");
@@ -1793,23 +1867,23 @@ int statement(struct trie_node *local_root_ptr, int perform) {
     } else if(isSwitch()){
         if(perform == 0){
             consume();
-            expression(local_root_ptr, 0);
+            expression(0);
             if(current_token->type != LEFT_BLOCK){
                 error(GENERAL, "Missing left bracket after declaration of switch statement");
             }
             int locrunswiflag = runswiflag;
             runswiflag = 0;
-            statement(local_root_ptr, 0);
+            statement(0);
             runswiflag = locrunswiflag;
         }
         else{
             consume();
-            expression(local_root_ptr, 1);
+            expression(1);
             case_count = 0;
             defaultflag = 0;
             struct  token * res_token = current_token;
             runswiflag = 1;
-            statement(local_root_ptr, 0);
+            statement(0);
             runswiflag = 0;
             current_token = res_token;
             if(defaultflag == 0){
@@ -1856,7 +1930,9 @@ int statement(struct trie_node *local_root_ptr, int perform) {
             printf("    jmp  *.SW%d(,%%rax, 8)\n", switch_count);
             int locswitch_count = switch_count;
             switch_count++;
-            statement(local_root_ptr, 1);
+            beginVarScope();
+            statement(1);
+            endVarScope();
             printf(" ESW%d:\n", locswitch_count);
         }
         return 1;
@@ -1971,7 +2047,7 @@ int statement(struct trie_node *local_root_ptr, int perform) {
             }
             swithead = swithead->next;
             while(!isCase() && !isBreak() && !isRightBlock()){
-                statement(local_root_ptr, 1);
+                statement(1);
             }
             if(isBreak()){
                 printf("    jmp ESW%d\n", locswitchnum);
@@ -1987,7 +2063,7 @@ int statement(struct trie_node *local_root_ptr, int perform) {
 
         consume();
         /*frequency*/
-        expression(local_root_ptr, perform);
+        expression(perform);
         if(perform != 0) {
             printf("	mov %%rax, %%rdi\n");
         }
@@ -1998,7 +2074,7 @@ int statement(struct trie_node *local_root_ptr, int perform) {
 
         consume();
         /*length*/
-        expression(local_root_ptr, perform);
+        expression(perform);
         if(perform != 0) {
             printf("	mov %%rax, %%rsi\n");
         }
@@ -2008,7 +2084,7 @@ int statement(struct trie_node *local_root_ptr, int perform) {
 
         consume();
         /*repetitions*/
-        expression(local_root_ptr, perform);
+        expression(perform);
         if(perform != 0) {
             printf("	mov %%rax, %%rdx\n");
         }
@@ -2028,9 +2104,10 @@ int statement(struct trie_node *local_root_ptr, int perform) {
     }
 }
 
-void seq(struct trie_node *local_root_ptr, int perform) {
-    while (statement(local_root_ptr, perform)) { fflush(stdout); }
+void seq(int perform) {
+    while (statement(perform)) { fflush(stdout); }
 }
+
 
 void function(void) {
     if (!isFun()) {
@@ -2050,12 +2127,11 @@ void function(void) {
         error(GENERAL, "Expected function parameter declaration\n");
     }
     consume();
-    struct trie_node *local_root_ptr = calloc(1, sizeof(struct trie_node));
+    beginVarScope();
     int var_num = 2;
-    local_var_num = -1;
     while (!isRight()) {
         if(!isType()) {
-            error(GENERAL, "expected type declaration");
+            error(GENERAL, "expected type declaration\n");
         }
         char* typeName = current_token->value.id;
         int whichType = findVarType(typeName);
@@ -2065,39 +2141,18 @@ void function(void) {
         }
         char *param_id = getId();
         consume();
-        setVarNum(param_id, local_root_ptr, var_num++, whichType);
+        setVarNum(param_id, var_num++, whichType);
         free(param_id);
         if (isComma()) {
             consume();
         }
     }
     consume();
-    //store token index
-    struct token *function_start = current_token;
-    //run through statement
-    //sub num vars from rsp
-    num_variable_declarations = 0;
-    struct trie_node *empty_temp = calloc(1, sizeof(struct trie_node));
-    statement(empty_temp, 0);
-    if (num_variable_declarations % 2 != 0) {
-        num_variable_declarations++;
-    }
-    if(num_errors == 0){
-        printf("    subq $%d,%%rsp\n", 8 * num_variable_declarations);
-        //restore token index
-        current_token = function_start;
-
-        num_variable_declarations = 0;
-        statement(local_root_ptr, 1);
-        if (num_variable_declarations % 2 != 0) {
-            num_variable_declarations++;
-        }
-        printf("%s_end:\n", function_name);
-        printf("    addq $%d,%%rsp\n", 8 * num_variable_declarations);
-        freeTrie(local_root_ptr);
-        printf("    pop %%rbp\n");
-        printf("    ret\n");
-    }
+    statement(1);
+    printf("%s_end:\n", function_name);
+    endVarScope();
+    printf("    pop %%rbp\n");
+    printf("    ret\n");
 }
 
 void structDef(void) {
@@ -2169,12 +2224,12 @@ void structDef(void) {
     printf("    movq %%r8, %%rax\n");
     printf("    pop %%r8\n");
     printf("    ret\n");
-    for(int i = 0; i < struct_count + 1; i++){
+    /*for(int i = 0; i < struct_count + 1; i++){
         fprintf(stderr, "struct %d exists\n", struct_info[i].id);
         for(int j = 0; j < struct_info[struct_count].type_count; j++){
             fprintf(stderr, "   %s is type %d\n", struct_info[i].data[j].name, struct_info[i].data[j].type);
         }
-    }
+    }*/
     if (!isRightBlock()) {
         error(BRACKET_MISMATCH, "Unexpected token found before struct closed\n");
     }
@@ -2196,17 +2251,15 @@ void globalVarDef(void) {
     }
     char *id = getId();
     consume();
-    setVarNum(id, global_root_ptr, 1, whichType);
+    setVarNum(id, 1, whichType);
     printf("global_%d:\n", num_global_vars++);
-    struct trie_node *local_root_ptr = calloc(1, sizeof(struct trie_node));
     if (isEq()) {
         consume();
-        expression(local_root_ptr, 1);
-        set(id, local_root_ptr, whichType);
-    }
-    if (isStruct) {
+        expression(1);
+        set(id);
+    } else if (isStruct) {
         printf("    call %s_struct\n", id);
-        set(id, local_root_ptr, whichType);
+        set(id);
     }
     printf("    jmp global_%d\n", num_global_vars);
     if (isSemi()) {
@@ -2214,9 +2267,295 @@ void globalVarDef(void) {
     }
 }
 
+struct token *copyToken(struct token *curr_token) {
+    struct token *copy = malloc(sizeof(struct token));
+    if(curr_token->type == ID || curr_token->type == TYPE_KWD) {
+        copy->value.id = malloc(strlen(curr_token->value.id));
+        strcpy(copy->value.id, curr_token->value.id);
+    } else if(curr_token->type == INTEGER) {
+        copy->value.integer = curr_token->value.integer;
+    } else if(curr_token->type == CHAR) {
+        copy->value.character = curr_token->value.character;
+    }
+    copy->type = curr_token->type;
+    copy->line_num = curr_token->line_num;
+    return copy;
+}
+
+void definePass(void) {
+    current_token = first_token;
+    struct user_operator *current_op = NULL;
+    while(current_token->type != END) { //look through whole list of tokens
+        //handle define statements
+        if(current_token->type == DEFINE_KWD) {
+            //move to next token
+            current_token = current_token->next;
+            
+            //next token should be a user operator
+            if(current_token->type != USER_OP) {
+                error(GENERAL, "invalid define statement");
+            }
+            //check if the user operator is a valid symbol
+            if(!isupper(current_token->value.user_op)) {
+                error(GENERAL, "invalid user operator symbol");
+            }
+            
+            //create new user operator
+            struct user_operator *operator = calloc(1, sizeof(struct user_operator));
+            operator->symbol = current_token->value.user_op;
+            operator->var1 = NULL;
+            operator->var2 = NULL;
+            //add to list of user operators
+            if(user_ops == NULL) { //no first link in linked list
+                user_ops = operator;
+                current_op = operator;
+            } else { //add links appropriately
+                current_op->next = operator;
+                current_op = operator;
+            }
+            operator->next = NULL;
+            
+            //get type of first variable
+            current_token = current_token->next;
+            if(current_token->type != TYPE_KWD) {
+                error(GENERAL, "no type specified for first variable in define statement");
+            } else {
+                operator->type1 = getTypeId(current_token->value.id);
+            }
+
+            //get type of second variable
+            current_token = current_token->next; 
+            if(current_token->type != TYPE_KWD) {
+                error(GENERAL, "no type specified for first variable in define statement");
+            } else {
+                operator->type2 = getTypeId(current_token->value.id);
+            }
+
+            //get expression
+            current_token = current_token->next;
+            //store previous node while forming linked list
+            struct token *curr_copy = NULL;
+            while(current_token->type != SEMI) { //expression ends with semicolon
+                //copy token
+                struct token *copy = copyToken(current_token);
+                //copy next and previous nodes
+                if(curr_copy == NULL) { //first iteration of while loop
+                    operator->expression = copy;
+                    curr_copy = copy;
+                    copy->next = NULL;
+                    copy->prev = NULL;
+                } else {
+                    copy->prev = curr_copy;
+                    curr_copy->next = copy;
+                    curr_copy = copy;
+                    copy->next = NULL;
+                }
+                //check if token is a variable and store variable names
+                if(current_token->type == ID) {
+                    if(operator->var1 == NULL) {
+                        operator->var1 = (char*)(malloc(strlen(current_token->value.id)));
+                        strcpy(operator->var1, current_token->value.id);
+                    } else if(operator->var2 == NULL) {
+                        operator->var2 = (char*)(malloc(strlen(current_token->value.id)));
+                        strcpy(operator->var2, current_token->value.id);
+                    } else if(!(strcmp(operator->var1, current_token->value.id) == 0 || strcmp(operator->var2, current_token->value.id) == 0)) {
+                        //expression can only handle two variables right now
+                        error(GENERAL, "too many variables in this expression");
+                    }
+                }
+                //move to next token
+                current_token = current_token->next;
+            }
+        } else if(current_token->type == USER_OP) { //TODO: implement
+            //check if the user operator is a valid user operator
+            if(!isupper(current_token->value.user_op)) {
+                error(GENERAL, "invalid character for user operator");
+            }
+            
+            //find the user operator information from the linked list
+            struct user_operator *operator = user_ops;
+            while(operator != NULL) {
+                if(operator->symbol == current_token->value.user_op) {
+                    break;
+                }
+                operator = operator->next;
+            }
+            if(operator == NULL) {
+                error(GENERAL, "tried to use a user operator without defining it");
+            }
+
+            //ignore user operators that follow define statements, that should be handled above
+            if(current_token->prev->type != DEFINE_KWD) {
+                //get left half of expression (to left of operator)
+                struct token *leftStart = current_token->prev;
+                struct token *leftEnd = leftStart;
+                //TODO: dereferenced pointers
+                if(leftStart->type == RIGHT) { //case 1: expression or function
+                    while(leftStart->type != LEFT) { //move to left parenthesis
+                        leftStart = leftStart->prev;
+                    }
+                    if(leftStart->prev->type == ID) { //function
+                        //start at fun keyword
+                        leftStart = leftStart->prev;
+                    }
+                } else if(leftStart->type == INTEGER) { //case 2: single integer without parentheses
+                } else if(leftStart->type == ID) { //case 3: variables
+                    if(leftStart->prev->type == DOT) { //case 4: struct elements
+                        //start at struct name
+                        leftStart = leftStart->prev->prev;
+                    } else { //just a plain old variable
+                    }
+                }
+                else if(leftStart->type == RIGHT_BRACKET) { //case 5: array elements
+                    while(leftStart->type != LEFT_BRACKET) { //go back to left bracket
+                        leftStart = leftStart->prev;
+                    }
+                    //start at array name
+                    leftStart = leftStart->prev;
+                }
+                
+                //get right half of expression (to right of operator)
+                struct token *rightStart = current_token->next;
+                struct token *rightEnd = rightStart;
+                //TODO: pointers?
+                if(rightEnd->type == LEFT || rightEnd->type == FUN_KWD) { //case 1: expression or function
+                    while(rightEnd->type != RIGHT) { //move to right parenthesis
+                        rightEnd = rightEnd->next;
+                    }
+                } else if(rightEnd->type == INTEGER) { //case 2: single integer without parentheses
+                } else if(rightEnd->type == ID) { //case 3: variables
+                    if(rightEnd->next->type == DOT) { //case 4: struct elements
+                        //start at struct name
+                        rightEnd = rightEnd->next->next;
+                    } else if(rightEnd->next->type == LEFT_BRACKET) { //case 5: array elements
+                        while(rightEnd->type != RIGHT_BRACKET) { //move to right bracket
+                            rightEnd = rightEnd->next;
+                        }
+                    } else { //case 3: just a plain old variable
+                    }
+                }
+
+                //update current token
+                current_token = rightEnd->next;
+
+                //insert actual expression into place where user operator is located
+                int isFirstIteration = 1;
+                struct token *exprEnd; //stores end of expression in operator
+                struct token *exprStart = copyToken(operator->expression); //start of expression in operator
+                struct token *copy_this = operator->expression->next; //original expression node to copy
+                struct token *curr_copy = NULL; //copy of previous expression node
+                struct token *copy; //current copy of node
+                while(copy_this != NULL) {
+                    //keep track of whether or not curr_copy has been altered
+                    int curr_changed = 0;
+                    //copy token if not the first iteration, otherwise use first copy made above
+                    if(curr_copy != NULL) {
+                        copy = copyToken(copy_this);
+                        //copy next and previous nodes
+                        copy->prev = curr_copy;
+                        curr_copy->next = copy;
+                        copy->next = NULL;
+                    } else {
+                        copy = exprStart;
+                        //create links between start of expression and whole code
+                        exprStart->prev = leftStart->prev;
+                        leftStart->prev->next = exprStart;
+                    }
+                    //check if token is a variable and replace variable names with expressions
+                    if(copy->type == ID) {
+                        int ranIfs = 0;
+                        struct token *exprBegin; //beginning of expression
+                        struct token *curr_token; //previous token copied
+                        struct token *copy_this_token; //token to copy from variable expression
+                        struct token *copy_end; //last token to copy
+                        //assign variables as necessary for left or right                    
+                        if(strcmp(operator->var1, copy->value.id) == 0) { //var 1
+                            //copy whole linked list of var1 expression
+                            exprBegin = copyToken(leftStart);
+                            copy_this_token = leftStart;
+                            copy_end = leftEnd->next;
+                            ranIfs = 1;
+                        } else if(strcmp(operator->var2, copy->value.id) == 0) { //var 2
+                            //copy whole linked list of var2 expression
+                            exprBegin = copyToken(rightStart);
+                            copy_this_token = rightStart;
+                            copy_end = rightEnd->next;
+                            ranIfs = 1;
+                        }
+                    
+                        if(ranIfs) {
+                            curr_token = NULL;
+                            //copy whole linked list of expressions for the specified variable
+                            while(copy_this_token != copy_end) {
+                                struct token *copy2;
+                                if(curr_token == NULL) { //first iteration
+                                    copy2 = exprBegin;
+                                    //create links
+                                    exprBegin->prev = copy->prev;
+                                    copy->prev->next = exprBegin;
+                                    //save new start of expression
+                                    if(copy == exprStart) {
+                                        exprStart = exprBegin;
+                                    }
+                                } else {
+                                    copy2 = copyToken(copy_this_token);
+                                    copy2->prev = curr_token;
+                                    curr_token->next = copy2;
+                                }
+                                copy2->next = NULL;
+                                curr_token = copy2;
+                                copy_this_token = copy_this_token->next;
+                            }
+                            //link boundary nodes in expression and greater chunk
+                            //copy = node currently storing the variable
+                            curr_token->next = copy->next;
+                            if(copy->next != NULL) {
+                                copy->next->prev = curr_token;
+                            }
+                            exprEnd = curr_token;
+                            curr_copy = exprEnd;
+                            curr_changed = 1;
+                        }
+                    }
+                    //move to next token
+                    if(!curr_changed) {
+                        curr_copy = copy;
+                    }
+                    //if(curr_copy != exprStart) { //not first iteration of while
+                    if(!isFirstIteration) {
+                        copy_this = copy_this->next;
+                    } else {
+                        isFirstIteration = 0;
+                    }
+                } //end while
+                //break links between overall code and this whole expression, insert expression into empty space
+                leftStart->prev->next = exprStart;
+                exprStart->prev = leftStart->prev;
+                exprEnd->next = current_token;
+                current_token->prev = exprEnd;
+            }//end if !define 
+        } //end while
+        //check next token unless we've hit the end
+        if(current_token->type != END) {
+            current_token = current_token->next;
+        }
+    } //end while
+    //reset to first token before exiting method
+    current_token = first_token;
+}
+
 void program(void) {
+    //second pass to replace user operators with their expressions
+    definePass();
+    //other top level statements
     while (1) {
-        if (isFun()) {
+        if (isDefine()) {
+            //skip whole define statement
+            while(!isSemi()) {
+                current_token = current_token->next;
+            }
+            current_token = current_token->next;
+        } else if (isFun()) {
             function();
         } else if (isStruct()) {
             structDef();
@@ -2290,7 +2629,7 @@ void compile(void) {
     printf("    call bg_drawngon\n");
     printf("    pop %%r8\n");
     printf("    ret\n");
-    printf("random_fun:");
+    printf("random_fun:\n");
     printf("    mov rand_seed,%%rax\n");
     printf("    mov %%rax,%%rdi\n");
     printf("    shl $21,%%rdi\n");
@@ -2302,6 +2641,19 @@ void compile(void) {
     printf("    shl $4,%%rdi\n");
     printf("    xor %%rdi,%%rax\n");
     printf("    mov %%rax,rand_seed\n");
+    printf("    ret\n");
+    printf("getchar_fun:\n");
+    printf("    push %%r8\n");
+    printf("    call getchar\n");
+    printf("    movslq %%eax, %%rax\n");
+    printf("    pop %%r8\n");
+    printf("    ret\n");
+    printf("printchar_fun:\n");
+    printf("    push %%r8\n");
+    printf("    mov $output_format_char, %%rdi\n");
+    printf("    mov 16(%%rsp), %%rsi\n");
+    printf("    call printf\n");
+    printf("    pop %%r8\n");
     printf("    ret\n");
     printf("//END STANDARD FUNCTIONS BLOCK\n");
 
@@ -2321,8 +2673,10 @@ void compile(void) {
         current_token = current_token->next;
     }
     current_token = first_token;
-
-    global_root_ptr = calloc(1, sizeof(struct trie_node));
+    namespace_head = malloc(sizeof(struct trie_node));
+    namespace_head->root_ptr = calloc(1, sizeof(struct trie_node));
+    namespace_head->next_var_num = -1;
+    namespace_head->next = 0;
     int x = setjmp(escape);
     if (x == 0) {
         program();
@@ -2330,6 +2684,8 @@ void compile(void) {
     printf("    .data\n");
     printf("output_format:\n");
     printf("    .string \"%%" PRIu64 "\\n\"\n");
+    printf("output_format_char:\n");
+    printf("    .string \"%%c\"\n");
     printf("bell_format:\n");
     printf("    .string \"\7\"\n");
     printf("ineedazero:\n"); //I need a pointer to zero for Open GL
@@ -2340,10 +2696,11 @@ void compile(void) {
     printf("    .quad 0\n");
     printf("rand_seed:\n");
     printf("    .quad 10\n");
-    initVars(global_root_ptr);
+    initVars(namespace_head->root_ptr);
 
     free(id_buffer);
-    freeTrie(global_root_ptr);
+    freeTrie(namespace_head->root_ptr);
+    free(namespace_head);
 }
 
 int main(int argc, char *argv[]) {
