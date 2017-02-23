@@ -1213,8 +1213,13 @@ void e1(int perform) {
 		get (id, "mov");
 		printf("    add $1, %%rax\n");	
 		}
-	}
-	else if (isLeft()) {
+	}else if (isMinusMinus()){
+		consume();
+		if (perform){
+		get (id, "mov");
+		printf("   sub $1, %%rax\n");
+		}
+	}else if (isLeft()) {
             consume();
             int params = 0;
             //int paramId = -1;
