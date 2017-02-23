@@ -1,0 +1,17 @@
+Describe your linkage convention
+
+- How are arguments passed
+
+I pass my arguments on the stack. When I see a function call I push every argument on the stack and count how many I push. Then, I push that count variable onto the stack. In the future, to access the variables I get the index of the variable I want and get the location that is rsp - pushed + index which will return the argument at index.
+
+- How do functions return values?
+
+I return values by storing the value in rax from the callee and immediately saving rax into the stack from the caller
+
+- How do you maintain the proper stack alignment when calling printf?
+
+I store the value of the stack pointer into a scratch register, then "and" the value of the stack pointer with 0xfffffffffffffff0 to make it divisible by 16 (pushing the value of the stack pointer downwards and effectively padding it), call printf, then restore the stack pointer to the value in the original register. 
+
+- Explain how you enforce the scope rules, in the compiler and at runtime.
+
+When I see a variable name, I first check in the current namespace (a list of variable names that are defined for the current function). If I don't see it there, I look in the global namespace. If I don't see it there I initialize the value to zero. This scopes the variable into the function's namespaces if they are local variables and scopes them globally otherwise. This scoping happens entirely at compile time, because by runtime it has already determined whether the variable is scoped locally or globally. 

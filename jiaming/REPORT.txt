@@ -1,0 +1,24 @@
+Describe your linkage convention
+
+- How are arguments passed
+    Arguments 1, 2, 3, 4, 5, and 6 are passed via registers %rdi, %rsi, %rdx, %rcx, %r8, and %r9, respectively. Arguments beyond the 6th are pushed onto the stack in reverse order (argument 7 is at (%rsp), argument 8 is at 8(%rsp) and so on) before the function is called.
+
+- How do functions return values?
+    Return values are stored in %rax.
+
+- How do you maintain the proper stack alignment when calling printf?
+    I only modify the stack in ways that will maintain the 16 byte alignment of the stack. At the beginning of every function call, %rbp is saved onto the stack. This happens to correct for the misalignment created by pushing return address to the stack. When values are pushed onto the stack during the evaluation of an expression, they are done so in groups of 4, which maintains the stack alignment. When pushing parameters to the stack, space is allocated two parameters at a time. Every time an odd numbered parameter is pushed to the stack, an additional 8 bytes of space is allocated. The following even numbered parameter is placed into the extra space. If an odd number of parameters parameters are passed to a function, the extra 8 bytes can be seen as an unreachable extra parameter.
+
+- Explain how you enforce the scope rules, in the compiler and at runtime.
+    At compile time, a local variable namespace is made for every function alongside the global namespace. When a variable is referenced, the local namespace is checked before the global namespace, allowing local variables to shadow global variables. If the variable exists in the local namespace, then the variable reference is converted into either is corresponding register (for arguments 1-6) or it's address in the stack (for arguments 7 and above). If the referenced variable is not a local variable, then the variable reference is converted into the global variable's location in memory. Because this distinction is made at compile time, no action at runtime is required to enforce variable scope.
+
+
+
+
+
+
+
+Uses code from my p3 submission.
+
+references:
+Computer Systems- A Programmer's Perspective
