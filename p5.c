@@ -1862,6 +1862,7 @@ int statement(int perform) {
             //add msg
             error();
         }
+        consume();
         statement(perform);
         endVarScope();
         if (perform) {
