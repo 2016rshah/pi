@@ -71,12 +71,15 @@ enum token_type {
     TRUE,
     FALSE,
     COLON,
-    QUESTION_MARK
+    QUESTION_MARK,
+    FOR,
+    PLUS_PLUS,
+    MINUS_MINUS
 };
 
-static int numTokenTypes = 57;
+static int numTokenTypes = 60;
 
-char* tokenStrings[57]= {"IF", "ELSE", "WHILE", "FUN", "RETURN", "PRINT", "FUSION/STRUCT", "TYPE", "BELL", "DELAY", "-", "/", "%", "REFERENCE", "DEREFERENCE", "WINDOW_START", "WINDOW_END", "PLAY", "KBDOWNLOGIC", "KBDOWNEND", "KBUPLOGIC", "KBUPEND", "EQ", "DEFINE", "==", "<", ">", "<>", "AND", "OR", "XOR", "SEMI", "[", "]", ",", ".", "(", ")", "{", "}", "+", "*", "ID", "INTEGER", "USER_OP", "END", "SWITCH", "CASE", "BREAK", "DEFAULT", "LONG", "BOOLEAN", "CHAR", "TRUE", "FALSE", ":", "?"};
+char* tokenStrings[60]= {"IF", "ELSE", "WHILE", "FUN", "RETURN", "PRINT", "FUSION/STRUCT", "TYPE", "BELL", "DELAY", "-", "/", "%", "REFERENCE", "DEREFERENCE", "WINDOW_START", "WINDOW_END", "PLAY", "KBDOWNLOGIC", "KBDOWNEND", "KBUPLOGIC", "KBUPEND", "EQ", "DEFINE", "==", "<", ">", "<>", "AND", "OR", "XOR", "SEMI", "[", "]", ",", ".", "(", ")", "{", "}", "+", "*", "ID", "INTEGER", "USER_OP", "END", "SWITCH", "CASE", "BREAK", "DEFAULT", "LONG", "BOOLEAN", "CHAR", "TRUE", "FALSE", ":", "?", "FOR", "++", "--"};
 
 union token_value {
     char *id;
@@ -169,6 +172,7 @@ static struct var_namespace *namespace_head;
 static unsigned int if_count = 0;
 static unsigned int while_count = 0;
 static unsigned int window_count = 0;
+static unsigned int for_count = 0;
 
 static unsigned int switch_count = 0;
 static unsigned int case_count = 0;
@@ -536,7 +540,13 @@ struct token *getToken(void) {
         next_token->type = RIGHT_BLOCK;
     } else if (next_char == '+') {
         next_char = getchar();
+        if (next_char == '+'){
+            next_char = getchar();
+            next_token->type = PLUS_PLUS;
+        }
+        else{ 
         next_token->type = PLUS;
+        }
     } else if (next_char == '*') {
         next_char = getchar();
         next_token->type = MUL;
@@ -548,7 +558,13 @@ struct token *getToken(void) {
         next_token->type = MODULUS;
     } else if (next_char == '-') {
         next_char = getchar();
+        if (next_char == '-'){
+            next_char = getchar();
+            next_token->type = MINUS_MINUS;
+        }
+        else{
         next_token->type = MINUS;
+        }
     } else if (next_char == '@') {
         next_char = getchar();
         next_token->type = REFERENCE;
@@ -596,6 +612,8 @@ struct token *getToken(void) {
             next_token->type = ELSE_KWD;
         } else if (strcmp(id_buffer, "while") == 0) {
             next_token->type = WHILE_KWD;
+        } else if (strcmp(id_buffer, "for") == 0){
+            next_token->type = FOR;
         } else if (strcmp(id_buffer, "fun") == 0) {
             next_token->type = FUN_KWD;
         } else if (strcmp(id_buffer, "return") == 0) {
@@ -870,6 +888,18 @@ int isKBUpEnd() {
     return current_token->type == KBUPEND;
 }
 
+int isFor() {
+    return current_token->type == FOR;
+}
+
+int isPlusPlus() {
+    return current_token->type == PLUS_PLUS;
+}
+
+int isMinusMinus() {
+    return current_token->type == MINUS_MINUS;
+}
+
 char *getId() {
     return current_token->value.id;
 }
@@ -881,6 +911,7 @@ uint64_t getInt() {
 uint64_t getChar() {
     return current_token->value.character;
 }
+
 
 
 void freeTrie(struct trie_node *node_ptr) {
@@ -1141,7 +1172,14 @@ void e1(int perform) {
             printf("    mov %%rdi, %%r12\n");
             return;
         }
-        if (isLeft()) {
+        if (isPlusPlus()){
+		consume();
+		if (perform){
+		get (id, "mov");
+		printf("    add $1, %%rax\n");	
+		}
+	}
+	else if (isLeft()) {
             consume();
             int params = 0;
             while (!isRight()) {
@@ -1801,6 +1839,45 @@ int statement(int perform) {
             printf("    jmp while_begin_%u\n", while_num);
             printf("while_end_%u:\n", while_num);
         }
+        return 1;
+    } else if (isFor()){
+        //test
+        unsigned int for_num = for_count++;
+        consume();
+        if (!isLeft()){
+            //add msg
+            error(PAREN_MISMATCH,"Expected (");
+        }
+        consume();
+        beginVarScope();
+        statement(perform);
+        if (perform) {
+            printf("for_begin_%u:\n", for_num);
+        }
+        expression(perform);
+        if (perform) {
+            printf("    test %%rax,%%rax\n");
+            printf("    jz for_end_%u\n", for_num);
+            printf("    jmp for_code_%u\n", for_num);
+            printf("for_inc_%u:\n", for_num);
+        }
+        statement(perform);
+        if (perform){
+            printf("    jmp for_begin_%u\n", for_num);
+            printf("for_code_%u:\n", for_num);
+        }
+	//obvious comment
+        if (!isRight()){
+            //add msg
+            error(PAREN_MISMATCH, "Expected )");
+        }
+        consume();
+        statement(perform);
+        if (perform) {
+            printf("    jmp for_inc_%u\n", for_num);
+            printf("for_end_%u:\n", for_num);
+        }
+        endVarScope();
         return 1;
     } else if (isSemi()) {
         consume();

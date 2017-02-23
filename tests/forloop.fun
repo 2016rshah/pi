@@ -1,8 +1,8 @@
-
-int j = 0;
-
 fun main(){
-	for (long i = 0; i < 5; i = i+1){
-		j = i;
+	long i = 0;
+	for(long j = 1 (j < 5) j=j+1;){
+		i = i + j;
+		print j
 	}
+	print i
 }

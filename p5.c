@@ -1172,7 +1172,14 @@ void e1(int perform) {
             printf("    mov %%rdi, %%r12\n");
             return;
         }
-        if (isLeft()) {
+        if (isPlusPlus()){
+		consume();
+		if (perform){
+		get (id, "mov");
+		printf("    add $1, %%rax\n");	
+		}
+	}
+	else if (isLeft()) {
             consume();
             int params = 0;
             while (!isRight()) {
@@ -1839,7 +1846,7 @@ int statement(int perform) {
         consume();
         if (!isLeft()){
             //add msg
-            error();
+            error(PAREN_MISMATCH,"Expected (");
         }
         consume();
         beginVarScope();
@@ -1852,24 +1859,25 @@ int statement(int perform) {
             printf("    test %%rax,%%rax\n");
             printf("    jz for_end_%u\n", for_num);
             printf("    jmp for_code_%u\n", for_num);
-            printf("for_inc_%u\n:", for_num);
+            printf("for_inc_%u:\n", for_num);
         }
         statement(perform);
         if (perform){
             printf("    jmp for_begin_%u\n", for_num);
-            printf("for_code_%u\n:", for_num);
+            printf("for_code_%u:\n", for_num);
         }
+	//obvious comment
         if (!isRight()){
             //add msg
-            error();
+            error(PAREN_MISMATCH, "Expected )");
         }
         consume();
         statement(perform);
-        endVarScope();
         if (perform) {
             printf("    jmp for_inc_%u\n", for_num);
             printf("for_end_%u:\n", for_num);
         }
+        endVarScope();
         return 1;
     } else if (isSemi()) {
         consume();
