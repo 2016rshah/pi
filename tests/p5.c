@@ -71,12 +71,13 @@ enum token_type {
     TRUE,
     FALSE,
     COLON,
-    QUESTION_MARK
+    QUESTION_MARK,
+    CONTINUE
 };
 
-static int numTokenTypes = 57;
+static int numTokenTypes = 58;
 
-char* tokenStrings[57]= {"IF", "ELSE", "WHILE", "FUN", "RETURN", "PRINT", "FUSION/STRUCT", "TYPE", "BELL", "DELAY", "-", "/", "%", "REFERENCE", "DEREFERENCE", "WINDOW_START", "WINDOW_END", "PLAY", "KBDOWNLOGIC", "KBDOWNEND", "KBUPLOGIC", "KBUPEND", "EQ", "DEFINE", "==", "<", ">", "<>", "AND", "OR", "XOR", "SEMI", "[", "]", ",", ".", "(", ")", "{", "}", "+", "*", "ID", "INTEGER", "USER_OP", "END", "SWITCH", "CASE", "BREAK", "DEFAULT", "LONG", "BOOLEAN", "CHAR", "TRUE", "FALSE", ":", "?"};
+char* tokenStrings[58]= {"IF", "ELSE", "WHILE", "FUN", "RETURN", "PRINT", "FUSION/STRUCT", "TYPE", "BELL", "DELAY", "-", "/", "%", "REFERENCE", "DEREFERENCE", "WINDOW_START", "WINDOW_END", "PLAY", "KBDOWNLOGIC", "KBDOWNEND", "KBUPLOGIC", "KBUPEND", "EQ", "DEFINE", "==", "<", ">", "<>", "AND", "OR", "XOR", "SEMI", "[", "]", ",", ".", "(", ")", "{", "}", "+", "*", "ID", "INTEGER", "USER_OP", "END", "SWITCH", "CASE", "BREAK", "DEFAULT", "LONG", "BOOLEAN", "CHAR", "TRUE", "FALSE", ":", "?", "CONTINUE"};
 
 union token_value {
     char *id;
@@ -178,6 +179,7 @@ static struct swit_entry * switenhead = NULL;
 static unsigned int defaultflag = 0;
 static unsigned int caseflag = 0;
 static unsigned int runswiflag = 0;
+static unsigned int globalbreakcount = 0;
 
 static int num_global_vars = 0;
 static char *function_name;
@@ -195,6 +197,8 @@ static int struct_decode_type_np = 0;
 /*static int perform = 1;*/
 
 static struct user_operator* user_ops; //stores linked list of user operators
+
+static int isWindow = 0;
 
 static int num_errors = 0;
 static int curr_line_num = 1;
@@ -618,6 +622,8 @@ struct token *getToken(void) {
             next_token->type = DEFAULT;
         } else if (strcmp(id_buffer, "break") == 0) {
             next_token->type = BREAK;
+        } else if (strcmp(id_buffer, "continue") == 0) {
+            next_token->type = CONTINUE;  
         } else if (strcmp(id_buffer, "startwindow") == 0) {
             next_token->type = WINDOW_START;  
         } else if (strcmp(id_buffer, "endwindow") == 0) {
@@ -708,6 +714,9 @@ int isDefault(){
 }
 int isBreak(){
     return current_token->type == BREAK;
+}
+int isContinue(){
+    return current_token->type == CONTINUE;
 }
 int isPrint() {
     return current_token->type == PRINT_KWD;
@@ -983,9 +992,13 @@ void beginVarScope(void) {
 void endVarScope(void) {
     namespace_head = namespace_head->next;
     if (namespace_head->next_var_num % 2 == 0) {
-        printf("    lea %d(%%rbp),%%rsp\n", 8 * (namespace_head->next_var_num));
+        if (!isWindow) {
+            printf("    lea %d(%%rbp),%%rsp\n", 8 * (namespace_head->next_var_num));
+        }
     } else {
-        printf("    lea %d(%%rbp),%%rsp\n", 8 * (namespace_head->next_var_num + 1));
+        if (!isWindow) {
+            printf("    lea %d(%%rbp),%%rsp\n", 8 * (namespace_head->next_var_num + 1));
+        }
     }
 }
 
@@ -1666,6 +1679,7 @@ int statement(int perform) {
         consume();
         return 1;
     } else if (isWindowStart()) {
+        isWindow = 1;
         consume();
         if(!isInt()){
             error(GENERAL, "Expected window x size after declaring window start block\n");
@@ -1766,6 +1780,7 @@ int statement(int perform) {
                 statement(perform);
             }
         }
+        isWindow = 0;
         consume();
         return 1;   
     } else if (isIf()) {
@@ -1794,6 +1809,8 @@ int statement(int perform) {
         }
         return 1;
     } else if (isWhile()) {
+        int locwhilenum = while_count;
+        globalbreakcount = while_count;
         unsigned int while_num = while_count++;
         consume();
         if (perform) {
@@ -1811,6 +1828,7 @@ int statement(int perform) {
             printf("    jmp while_begin_%u\n", while_num);
             printf("while_end_%u:\n", while_num);
         }
+        globalbreakcount = locwhilenum;
         return 1;
     } else if (isSemi()) {
         consume();
@@ -2107,7 +2125,22 @@ int statement(int perform) {
         consume();
         return 1;
     } else if (isBreak()){
-        consume();
+        if(perform == 0){
+         consume();
+        }
+        else{
+         printf("    jmp while_end_%u\n", globalbreakcount);
+         consume();
+        }
+        return 1;
+    } else if (isContinue()){
+        if(perform == 0){
+         consume();
+        }
+        else{
+         printf("    jmp while_begin_%u\n", globalbreakcount);
+         consume();
+        }
         return 1;
     } else {
         return 0;
