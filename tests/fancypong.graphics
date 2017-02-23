@@ -15,11 +15,13 @@ long r = 255;
 long g = 255;
 long b = 255;
 long radend;
+long shape;
 fun main(){
     long qq = 0;
     long count = 0;
     x = 3500000;
     y = 2500000;
+    shape = 4;
     iso = 0;
     isa = 0;
     isq = 0;
@@ -95,10 +97,13 @@ fun main(){
     if(y > 492 * pixelsize){
         ydir = 0;
     }
-    if((x < 20 * pixelsize) & (y > lpaddle - 50 * pixelsize) & (y < lpaddle + 50 * pixelsize)){
+    if((x < 26 * pixelsize) & (y > lpaddle - 50 * pixelsize) & (y < lpaddle + 50 * pixelsize)){
         if(xdir == 0){
             xspeed = xspeed + 20;
             yspeed = yspeed + 2;
+            r = random() % 64;
+            g = 0;
+            b = random() % 64 + 192;
         }
         xdir = 1;
     }
@@ -108,29 +113,36 @@ fun main(){
         lpaddle = 250 * pixelsize;
         rpaddle = 250 * pixelsize;
         xspeed = 150;
+        yspeed = 150;
     }
-    if((x > 680 * pixelsize) & (y > rpaddle - 50 * pixelsize) & (y < rpaddle + 50 * pixelsize)){
+    if((x > 674 * pixelsize) & (y > rpaddle - 50 * pixelsize) & (y < rpaddle + 50 * pixelsize)){
         if(xdir == 1){
             xspeed = xspeed + 20;
             yspeed = yspeed + 2;
+            r = random() % 64 + 192;
+            g = 0;
+            b = random() % 64;
         }
         xdir = 0;
     }
-    qq = setcolor(r/4, g/4, b/4);
-    radend = count % 10000;
-    qq = drawngon(350 * pixelsize, 250 * pixelsize, radend * 500, 5);
-    qq = setcolor(0, 0, 0);
-    qq = drawngon(350 * pixelsize, 250 * pixelsize, (radend * 500) - 10 * pixelsize, 5);
     qq = setcolor(r/3, g/3, b/3);
     qq = drawrect(345 * pixelsize, 0, 10 * pixelsize, 700 * pixelsize);
+    radend = count % 10000;
+    if(radend > 5000){
+        radend = 10000 - radend;
+    }
+    qq = drawngon(350 * pixelsize, 250 * pixelsize, radend * 200, shape);
+    qq = setcolor(0, 0, 0);
+    qq = drawngon(350 * pixelsize, 250 * pixelsize, (radend * 200) - 10 * pixelsize, shape);
     qq = setcolor(r, g, b);
     qq = drawrect(0, lpaddle - (50 * pixelsize), 20 * pixelsize, 100 * pixelsize);
     qq = drawrect(680 * pixelsize, rpaddle - (50 * pixelsize), 20 * pixelsize, 100 * pixelsize);
     qq = drawngon(x, y, 8 * pixelsize, 10);
     if(count > 10000){
-        r = random() % 64 + 192;
-        g = random() % 64 + 192;
-        b = random() % 64 + 192;
+        #r = random() % 64 + 192;
+        #g = random() % 64 + 192;
+        #b = random() % 64 + 192;
+        shape = (random() % 10) + 3;
         count = 0;
     }
     count = count + 1;

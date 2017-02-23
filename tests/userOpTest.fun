@@ -1,5 +1,6 @@
 define A long long a * b; #basic case: two integers, one operator
 define B long long a * b / a - b; #more advanced case: two integers, many operators
+define C long long var1 / var2 + var1; #variable names that are more than one letter long
 
 struct point {
     long x;
@@ -34,3 +35,5 @@ fun structtest() {
     print strpoint.x A strpoint.y;
     return 3;
 }
+
+

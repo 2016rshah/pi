@@ -6,9 +6,9 @@ fun main() {
         array[2] = 7;
         long otherarray[4];
         otherarray[3] = array[1];
+    	print otherarray[3];
     }
     else array[2] = 6;
     print array[1]
     print array[2];
-    print otherarray[3];
 }

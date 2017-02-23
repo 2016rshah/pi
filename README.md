@@ -1,6 +1,14 @@
 #HOT PI
 
-AKA the best com-PI-ler out there.
+```
+team hot pi more like team not high amirite
+more like team thought die
+but then team fought rye
+and then team shot high
+and then team dot... sigh
+and then team not bye
+cuz team hot pi
+```
 
 #Github reminders
 
