@@ -95,6 +95,7 @@ static unsigned int window_count = 0;
 static int local_var_num = -1;
 static int num_variable_declarations = 0;
 static char *function_name;
+static char error_char;
 
 static char **definedTypes;
 static int definedTypeCount = 0;
@@ -103,6 +104,9 @@ static int standardTypeCount = 0;
 /*static int perform = 1;*/
 //static char *op_not_allowed = "_+*{}()|&~=<>,;\n\t\r"; //stores characters that can't be user operators
 static struct user_operator* user_ops; //stores linked list of user operators
+
+static char** functionNames;
+static int numFunctions = 0;
 
 enum error_code {
     GENERAL,
@@ -142,7 +146,8 @@ void error(enum error_code errorCode, char* message){
     /* fprintf(stderr, "error: %s\n", message); */
     switch (errorCode){
     case GENERAL :
-	fprintf(stderr, "General error: %s\n", message);
+	fprintf(stderr,"next_char :%c:\n",error_char);
+        fprintf(stderr, "General error: %s\n", message);
 	break;
     case PAREN_MISMATCH:
 	fprintf(stderr, "Expected right paren in expression:\n");
@@ -397,6 +402,7 @@ struct token *getToken(void) {
         //4. replace a and b with actual variable names
         //5. add the tokens to the overall list of tokens
     } else {
+        error_char = next_char;
 	error(GENERAL, "invalid character");
         next_token->type = 0;
     }
@@ -654,6 +660,24 @@ void initVars(struct trie_node *node_ptr) {
     }
 }
 
+/*prints the function names to the bottom of data*/
+void printFunctionNames(){
+    for(int i = 0; i < numFunctions; i++){
+        printf("%s_fun_name : .asciz \"%s_fun\"\n",functionNames[i], functionNames[i]);
+    }
+}
+
+int isFunctionName(char* id){
+    for(int i = 0; i < numFunctions; i++){
+        if(strcmp(id,functionNames[i]) == 0 ){
+            return 1;
+        }
+    }
+    return 0;
+}
+
+
+
 void expression(struct trie_node *, int perform);
 void seq(struct trie_node *, int perform);
 
@@ -681,6 +705,7 @@ void e1(struct trie_node *local_root_ptr, int perform) {
         if (isLeft()) {
             consume();
             int params = 0;
+            //int paramId = -1;
             while (!isRight()) {
                 expression(local_root_ptr, perform);
                 if (isComma()) {
@@ -708,7 +733,16 @@ void e1(struct trie_node *local_root_ptr, int perform) {
                 for (int index = 0; index < params; index++) {
                     printf("    popq %d(%%rsp)\n", 8 * (params - 1));
                 }
-                printf("    call %s_fun\n", id);
+                //TODO
+                //Check here if the id is the name of a parameter, in which case
+                //Return the string that the id points to rather then the id itself
+                int param_index = getVarNum(id,local_root_ptr);
+                if(param_index > 0){
+                    //printf("    mov %%rax,%d(%%rbp)\n", 8 * var_num);
+                    printf("    call %d(%%rbp)\n",8*param_index);
+                } else {
+                    printf("    call %s_fun\n", id);
+                }
                 printf("    add $%d,%%rsp\n", 8 * params);
             }
         } else if (isDot()) { //Is a struct variable
@@ -727,7 +761,17 @@ void e1(struct trie_node *local_root_ptr, int perform) {
             }
         } else {
             if (perform) {
-                get(id, local_root_ptr);
+                //TODO
+                //Check here if the ID is the name of a function, in which case store a pointer
+                //to the string in %rax. if its not the name of a function, its a variable id
+                
+                //Check if the ID is the name of a parameter
+                
+                if(isFunctionName(id)){
+                    printf("    mov $%s_fun,%%rax\n",id);
+                } else {
+                    get(id, local_root_ptr);
+                }
             }
         }
         if (perform) {
@@ -1089,6 +1133,9 @@ void function(void) {
         error(GENERAL, "invalid function name");
     }
     char *id = getId();
+    functionNames = realloc(functionNames,(numFunctions + 1) * sizeof(char*));
+    functionNames[numFunctions] = strdup(id);
+    numFunctions++;
     consume();
     function_name = id;
     printf("%s_fun:\n", id);
@@ -1288,6 +1335,7 @@ void compile(void) {
     printf("windowtitle:\n");
     printf("    .string \"Potato, the Epic Window\"\n");
     initVars(global_root_ptr);
+    //printFunctionNames();
 
     free(id_buffer);
     freeTrie(global_root_ptr);
