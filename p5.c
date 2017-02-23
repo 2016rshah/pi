@@ -198,10 +198,13 @@ static int struct_decode_type_np = 0;
 
 static struct user_operator* user_ops; //stores linked list of user operators
 
+static char** functionNames;
+static int numFunctions = 0;
 static int isWindow = 0;
 
 static int num_errors = 0;
 static int curr_line_num = 1;
+
 
 enum error_code {
     GENERAL,
@@ -241,6 +244,22 @@ static void printUnbalancedError(enum token_type left, enum token_type right){
 void error(enum error_code errorCode, char* message){
     num_errors++;
     switch (errorCode){
+/*<<<<<<< HEAD
+    case GENERAL :
+	fprintf(stderr,"next_char :%c:\n",error_char);
+        fprintf(stderr, "General error: %s\n", message);
+	break;
+    case PAREN_MISMATCH:
+	fprintf(stderr, "Expected right paren in expression:\n");
+	printUnbalancedError(LEFT, RIGHT);
+	break;
+    case BRACKET_MISMATCH:
+	fprintf(stderr, "Expected right bracket:\n");
+	printUnbalancedError(LEFT_BLOCK, RIGHT_BLOCK);
+    default:
+	fprintf(stderr, "Yikes");
+	break;
+=======*/
         case GENERAL :
             fprintf(stderr, "General error on line %d: %s\n", current_token->line_num, message);
             break;
@@ -257,6 +276,7 @@ void error(enum error_code errorCode, char* message){
         default:
             fprintf(stderr, "Yikes\n");
             break;
+//>>>>>>> origin/master
     }
     //current_token = (*current_token).next;
 }
@@ -327,6 +347,7 @@ void addStandardTypes() {
     addType("boolean");
     addType("char");
     addType("long");
+    addType("funp");
     standardTypeCount = definedTypeCount;
 }
 
@@ -655,6 +676,21 @@ struct token *getToken(void) {
             next_token->type = DEFINE_KWD;
         } else {
             next_token->type = ID;
+/*<<<<<<< HEAD
+            next_token->value.id = strcpy(malloc(id_length), id_buffer);
+        }
+    } else if(isUserOp(next_char)) { //user operator outside define statement
+        //TODO: implement this
+        //1. get the list of tokens from the user operator struct
+        //2. get the variable that came before the operator and delete this token
+        //3. get the variable that comes after the operator
+        //4. replace a and b with actual variable names
+        //5. add the tokens to the overall list of tokens
+    } else {
+        error_char = next_char;
+	error(GENERAL, "invalid character");
+        next_token->type = 0;
+=======*/
             next_token->value.id = strcpy(malloc(id_length+1), id_buffer);
 	        next_token->value.id[id_length] = '\0';
         }
@@ -662,6 +698,7 @@ struct token *getToken(void) {
         next_token->type = USER_OP;
         next_token->value.user_op = next_char;
         next_char = getchar();
+//>>>>>>> origin/master
     }
     
     return next_token;
@@ -1085,8 +1122,21 @@ void initVars(struct trie_node *node_ptr) {
     }
 }
 
+int isFunctionName(char* id){
+    for(int i = 0; i < numFunctions; i++){
+        if(strcmp(id,functionNames[i]) == 0 ){
+  return 1;
+        }
+    }
+    return 0;
+}
+
+//void expression(struct trie_node *, int perform);
+//void seq(struct trie_node *, int perform);
+//=======
 void expression(int perform);
 void seq(int perform);
+//>>>>>>> origin/master
 
 /* handle id, literals, and (...) */
 void e1(int perform) {
@@ -1167,6 +1217,7 @@ void e1(int perform) {
         if (isLeft()) {
             consume();
             int params = 0;
+            //int paramId = -1;
             while (!isRight()) {
                 expression(perform);
                 if (isComma()) {
@@ -1194,7 +1245,16 @@ void e1(int perform) {
                 for (int index = 0; index < params; index++) {
                     printf("    popq %d(%%rsp)\n", 8 * (params - 1));
                 }
-                printf("    call %s_fun\n", id);
+                //TODO
+                //Check here if the id is the name of a parameter, in which case
+                //Return the string that the id points to rather then the id itself
+                int param_index = getVarNum(id);
+                if(param_index > 0){
+                    //printf("    mov %%rax,%d(%%rbp)\n", 8 * var_num);
+                    printf("    call *%d(%%rbp)\n",8*param_index);
+                } else {
+                    printf("    call %s_fun\n", id);
+                }
                 printf("    add $%d,%%rsp\n", 8 * params);
             }
         } else if (isDot()) { //Is a struct variable
@@ -1250,7 +1310,21 @@ void e1(int perform) {
             }
         } else {
             if (perform) {
+//<<<<<<< HEAD
+                //TODO
+                //Check here if the ID is the name of a function, in which case store a pointer
+                //to the string in %rax. if its not the name of a function, its a variable id
+                
+                //Check if the ID is the name of a parameter
+                
+                if(isFunctionName(id)){
+                    printf("    mov $%s_fun,%%rax\n",id);
+                } else {
+                    get(id, "mov");
+                }
+/*=======
                 get(id, "mov");
+>>>>>>> origin/master*/
             }
         }
         if (perform) {
@@ -2161,6 +2235,9 @@ void function(void) {
         error(GENERAL, "Invalid function name\n");
     }
     char *id = getId();
+    functionNames = realloc(functionNames,(numFunctions + 1) * sizeof(char*));
+    functionNames[numFunctions] = strdup(id);
+    numFunctions++;
     consume();
     function_name = id;
     printf("%s_fun:\n", id);
@@ -2735,11 +2812,16 @@ void compile(void) {
     printf("    .quad 0\n");
     printf("windowtitle:\n");
     printf("    .string \"Potato, the Epic Window\"\n");
+/*<<<<<<< HEAD
+    initVars(global_root_ptr);
+    //printFunctionNames();
+=======*/
     printf("rbp_store:\n");
     printf("    .quad 0\n");
     printf("rand_seed:\n");
     printf("    .quad 10\n");
     initVars(namespace_head->root_ptr);
+//>>>>>>> origin/master
 
     free(id_buffer);
     freeTrie(namespace_head->root_ptr);
