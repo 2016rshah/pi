@@ -61,7 +61,12 @@ fun main(){
     #if(isl){
     #    rpaddle = rpaddle - 200;
     #}
-    rpaddle = y;
+    if(rpaddle < y){
+        rpaddle = rpaddle + 200;
+    }
+    if(rpaddle > y){
+        rpaddle = rpaddle - 200;
+    }
     if(rpaddle < 50 * pixelsize) {
         rpaddle = 50 * pixelsize;
     }
@@ -105,6 +110,7 @@ fun main(){
         lpaddle = 250 * pixelsize;
         rpaddle = 250 * pixelsize;
         xspeed = 150;
+        yspeed = 150;
     }
     if((x > 680 * pixelsize) & (y > rpaddle - 50 * pixelsize) & (y < rpaddle + 50 * pixelsize)){
         if(xdir == 1){

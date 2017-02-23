@@ -113,6 +113,7 @@ fun main(){
         lpaddle = 250 * pixelsize;
         rpaddle = 250 * pixelsize;
         xspeed = 150;
+        yspeed = 150;
     }
     if((x > 674 * pixelsize) & (y > rpaddle - 50 * pixelsize) & (y < rpaddle + 50 * pixelsize)){
         if(xdir == 1){
