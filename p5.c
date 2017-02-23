@@ -1834,6 +1834,7 @@ int statement(int perform) {
         }
         return 1;
     } else if (isFor()){
+        //test
         unsigned int for_num = for_count++;
         consume();
         if (!isLeft()){
