@@ -14,25 +14,27 @@ Begin to do stuff:
 - Use `git checkout -b <your branch name>` to create a new branch and switch to it.
 - You can now make commits to this branch without modifying `master`.
 
-After someone else does something, you may want to incorporate that into your branch. To do so:
+After someone else does something, you may want to incorporate that into your branch. To do so (starting from your branch right after you commit/push to your branch):
 
-- Use `git checkout master` to switch to the master branch
-- Use `git pull` to receive a local copy of the changes.
-- Use `git checkout <your branch name>` to switch back to your branch
-- Use `git rebase master` while on your branch to apply the new changes to your branch. You may have to resolve some conflicts.
-
-Once you have done some things that work:
-
-- Make sure that you have incorporated the latest version of `master` into your branch.
-- Switch to the master branch using `git checkout master`.
-- Add your changes to master by using `git merge master`.
-- Use `git push` to push the changes to the repository.
+- Use `git fetch` to get all the remote work other people have done
+- Use `git merge origin/master` to merge the remote version of master into your branch
+- Resolve conflicts by editing the files that are conflicting and fixing everything with `<<<<< ... ==== ... >>>>` or whatever
+- After you've successfully resolved all merge conflicts, do `make clean test` to ensure everything still passes
+- Use `git checkout master` to switch to the real deal
+- Use `git merge <YOUR_BRANCH_NAME>` to grab everything from your (newly merged) branch into the master branch
+- Use `git push origin master` to finish off :smile:
 - If you are going to add more changes, switch back to your branch.
+
+
+##Adding/Removing/Editing tests
+
+The test can be found in their own directory. Basically, you make changes to the code in the p5.c file in the main directory, but edit tests in the test directory. Then, you can run `make clean test` from the main directory and everything will get synced up and run. Message me if you have any questions/I didn't explain this well enough. 
 
 #Guidelines:
 
 ##General
-- `master` should only contain functioning code
+- `master` should only contain functioning code (see instructions above)
+- Whenever you add a test called like `foo.fun` and `foo.ok` run the following command also: `printf("\nfoo\n") >> .gitignore` which will make sure unecessary files don't flood our folder (obviously replace foo with the name of the test)
 
 ##Style 
 If anyone cares to maintain the style of my original code:

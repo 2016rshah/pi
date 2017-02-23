@@ -1,5 +1,5 @@
 
-fun factorial(n) {
+fun factorial(long n) {
     print n
     long i = 0
     long v = 1

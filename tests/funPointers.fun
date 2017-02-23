@@ -1,14 +1,14 @@
 
-fun add(a){
+fun add(long a){
     return a+1;
 }
 
-fun addten(a){
+fun addten(long a){
     return a + 10;
 }
 
 
-fun apply(function,a){
+fun apply(funp function,long a){
     return function(a);
 }
 

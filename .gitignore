@@ -103,7 +103,7 @@ Session.vim
 *.o
 *.d
 *.out
-p4
+p5
 t0
 t1
 t2
@@ -128,3 +128,18 @@ structTest
 zzz_bad_parens
 comments
 p5
+zgraphics
+zzz_bad_brackets
+bool
+play
+global
+zzz_bad_keyword
+additionalOperators
+arrayTest
+pointers
+types
+basic
+switch1
+switch2
+
+ternaryOperator

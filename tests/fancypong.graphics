@@ -1,0 +1,150 @@
+long rpaddle = 2500000
+long lpaddle = 2500000
+long pixelsize = 10000;
+long x = 0;
+long y = 0;
+long isa;
+long isq;
+long iso;
+long isl;
+long xdir = 0;
+long ydir = 0;
+long xspeed = 150;
+long yspeed = 150;
+long r = 255;
+long g = 255;
+long b = 255;
+long radend;
+long shape;
+fun main(){
+    long qq = 0;
+    long count = 0;
+    x = 3500000;
+    y = 2500000;
+    shape = 4;
+    iso = 0;
+    isa = 0;
+    isq = 0;
+    isl = 0;
+    startwindow 700 500
+    startkeyboarddown
+        if(key == 97){
+            isa = 1;
+        }
+        if(key == 113){
+            isq = 1;
+        }
+        if(key == 111){
+            iso = 1;
+        }
+        if(key == 108){
+            isl = 1;
+        }
+    endkeyboarddown
+    startkeyboardup
+        if(key == 97){
+            isa = 0;
+        }
+        if(key == 113){
+            isq = 0;
+        }
+        if(key == 111){
+            iso = 0;
+        }
+        if(key == 108){
+            isl = 0;
+        }
+    endkeyboardup
+    if(isq){
+        lpaddle = lpaddle + 200;
+    }
+    if(isa){
+        lpaddle = lpaddle - 200;
+    }
+    if(iso){
+        rpaddle = rpaddle + 200;
+    }
+    if(isl){
+        rpaddle = rpaddle - 200;
+    }
+    if(rpaddle < 50 * pixelsize) {
+        rpaddle = 50 * pixelsize;
+    }
+    if(rpaddle > 450 * pixelsize){
+        rpaddle = 450 * pixelsize;
+    }
+    if(lpaddle < 50 * pixelsize) {
+        lpaddle = 50 * pixelsize;
+    }
+    if(lpaddle > 450 * pixelsize) {
+        lpaddle = 450 * pixelsize;
+    }
+    if(xdir == 0) {
+        x = x - xspeed;
+    }
+    if(xdir == 1) {
+        x = x + xspeed;
+    }
+    if(ydir == 0) {
+        y = y - yspeed;
+    }
+    if(ydir == 1) {
+        y = y + yspeed;
+    }
+    if(y < 8 * pixelsize){
+        ydir = 1;
+    }
+    if(y > 492 * pixelsize){
+        ydir = 0;
+    }
+    if((x < 26 * pixelsize) & (y > lpaddle - 50 * pixelsize) & (y < lpaddle + 50 * pixelsize)){
+        if(xdir == 0){
+            xspeed = xspeed + 20;
+            yspeed = yspeed + 2;
+            r = random() % 64;
+            g = 0;
+            b = random() % 64 + 192;
+        }
+        xdir = 1;
+    }
+    if((x < 1 * pixelsize) | (x > 699 * pixelsize)){
+        x = 3500000;
+        y = 2500000;
+        lpaddle = 250 * pixelsize;
+        rpaddle = 250 * pixelsize;
+        xspeed = 150;
+        yspeed = 150;
+    }
+    if((x > 674 * pixelsize) & (y > rpaddle - 50 * pixelsize) & (y < rpaddle + 50 * pixelsize)){
+        if(xdir == 1){
+            xspeed = xspeed + 20;
+            yspeed = yspeed + 2;
+            r = random() % 64 + 192;
+            g = 0;
+            b = random() % 64;
+        }
+        xdir = 0;
+    }
+    qq = setcolor(r/3, g/3, b/3);
+    qq = drawrect(345 * pixelsize, 0, 10 * pixelsize, 700 * pixelsize);
+    radend = count % 10000;
+    if(radend > 5000){
+        radend = 10000 - radend;
+    }
+    qq = drawngon(350 * pixelsize, 250 * pixelsize, radend * 200, shape);
+    qq = setcolor(0, 0, 0);
+    qq = drawngon(350 * pixelsize, 250 * pixelsize, (radend * 200) - 10 * pixelsize, shape);
+    qq = setcolor(r, g, b);
+    qq = drawrect(0, lpaddle - (50 * pixelsize), 20 * pixelsize, 100 * pixelsize);
+    qq = drawrect(680 * pixelsize, rpaddle - (50 * pixelsize), 20 * pixelsize, 100 * pixelsize);
+    qq = drawngon(x, y, 8 * pixelsize, 10);
+    if(count > 10000){
+        #r = random() % 64 + 192;
+        #g = random() % 64 + 192;
+        #b = random() % 64 + 192;
+        shape = (random() % 10) + 3;
+        count = 0;
+    }
+    count = count + 1;
+    endwindow
+}

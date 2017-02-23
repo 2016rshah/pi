@@ -1,0 +1,46 @@
+long x = 250;
+long y = 250;
+long pixelsize = 10000;
+long xdir = 1;
+long ydir = 1;
+long width = 700;
+long height = 500;
+long qq = 0;
+fun main(){
+x = 250 * pixelsize;
+y = 250 * pixelsize;
+xdir = 1;
+ydir = 1;
+width = 700;
+height = 700;
+pixelsize = 10000;
+startwindow 700 500
+if(xdir){
+    x = x + 200;
+} else {
+    x = x + 18446744073709551416;
+}
+if(ydir){
+    y = y + 200;
+} else {
+    y = y + 18446744073709551416;
+}
+if(x > pixelsize * 650){
+    xdir = 0;
+    qq = setcolor(127 + random() % 127, 127 + random() % 127, 127 + random() % 127);
+}
+if(x > pixelsize * 650 * 2){
+    xdir = 1;
+    qq = setcolor(127 + random() % 127, 127 + random() % 127, 127 + random() % 127);
+}
+if(y > pixelsize * 450){
+    ydir = 0;
+    qq = setcolor(127 + random() % 127, 127 + random() % 127, 127 + random() % 127);
+}
+if(y > pixelsize * 450 * 2){
+    ydir = 1;
+    qq = setcolor(127 + random() % 127, 127 + random() % 127, 127 + random() % 127);
+}
+qq = drawrect(x, y, 50*pixelsize, 50*pixelsize);
+endwindow
+}
