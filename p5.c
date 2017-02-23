@@ -74,12 +74,13 @@ enum token_type {
     QUESTION_MARK,
     FOR,
     PLUS_PLUS,
-    MINUS_MINUS
+    MINUS_MINUS,
+    CONTINUE
 };
 
-static int numTokenTypes = 60;
+static int numTokenTypes = 61;
 
-char* tokenStrings[60]= {"IF", "ELSE", "WHILE", "FUN", "RETURN", "PRINT", "FUSION/STRUCT", "TYPE", "BELL", "DELAY", "-", "/", "%", "REFERENCE", "DEREFERENCE", "WINDOW_START", "WINDOW_END", "PLAY", "KBDOWNLOGIC", "KBDOWNEND", "KBUPLOGIC", "KBUPEND", "EQ", "DEFINE", "==", "<", ">", "<>", "AND", "OR", "XOR", "SEMI", "[", "]", ",", ".", "(", ")", "{", "}", "+", "*", "ID", "INTEGER", "USER_OP", "END", "SWITCH", "CASE", "BREAK", "DEFAULT", "LONG", "BOOLEAN", "CHAR", "TRUE", "FALSE", ":", "?", "FOR", "++", "--"};
+char* tokenStrings[61]= {"IF", "ELSE", "WHILE", "FUN", "RETURN", "PRINT", "FUSION/STRUCT", "TYPE", "BELL", "DELAY", "-", "/", "%", "REFERENCE", "DEREFERENCE", "WINDOW_START", "WINDOW_END", "PLAY", "KBDOWNLOGIC", "KBDOWNEND", "KBUPLOGIC", "KBUPEND", "EQ", "DEFINE", "==", "<", ">", "<>", "AND", "OR", "XOR", "SEMI", "[", "]", ",", ".", "(", ")", "{", "}", "+", "*", "ID", "INTEGER", "USER_OP", "END", "SWITCH", "CASE", "BREAK", "DEFAULT", "LONG", "BOOLEAN", "CHAR", "TRUE", "FALSE", ":", "?", "FOR", "++", "--","CONTINUE"};
 
 union token_value {
     char *id;
@@ -182,6 +183,7 @@ static struct swit_entry * switenhead = NULL;
 static unsigned int defaultflag = 0;
 static unsigned int caseflag = 0;
 static unsigned int runswiflag = 0;
+static unsigned int globalbreakcount = 0;
 
 static int num_global_vars = 0;
 static char *function_name;
@@ -200,8 +202,13 @@ static int struct_decode_type_np = 0;
 
 static struct user_operator* user_ops; //stores linked list of user operators
 
+static char** functionNames;
+static int numFunctions = 0;
+static int isWindow = 0;
+
 static int num_errors = 0;
 static int curr_line_num = 1;
+
 
 enum error_code {
     GENERAL,
@@ -258,7 +265,6 @@ void error(enum error_code errorCode, char* message){
             fprintf(stderr, "Yikes\n");
             break;
     }
-    //current_token = (*current_token).next;
 }
 
 // https://en.wikibooks.org/wiki/Algorithm_Implementation/Strings/Levenshtein_distance#C
@@ -327,6 +333,7 @@ void addStandardTypes() {
     addType("boolean");
     addType("char");
     addType("long");
+    addType("funp");
     standardTypeCount = definedTypeCount;
 }
 
@@ -458,10 +465,20 @@ char removeWhitespace(char next_char) {
             }
             next_char = getchar();
         } else if (next_char == '#') {
-            while (next_char != '\n' && next_char != -1) {
+            next_char = getchar();
+            if (next_char == '~') {
+                char last_char = getchar();
                 next_char = getchar();
+                while ((last_char != '~' || next_char != '#') && next_char != -1) {
+                    last_char = next_char;
+                    next_char = getchar();
+                }
+            } else {
+                while (next_char != '\n' && next_char != -1) {
+                    next_char = getchar();
+                }
             }
-            next_char = getchar(); //eat the newline character
+            next_char = getchar(); //eat the last character
             curr_line_num++;
         } else {
             break;
@@ -626,6 +643,8 @@ struct token *getToken(void) {
             next_token->type = DEFAULT;
         } else if (strcmp(id_buffer, "break") == 0) {
             next_token->type = BREAK;
+        } else if (strcmp(id_buffer, "continue") == 0) {
+            next_token->type = CONTINUE;  
         } else if (strcmp(id_buffer, "startwindow") == 0) {
             next_token->type = WINDOW_START;  
         } else if (strcmp(id_buffer, "endwindow") == 0) {
@@ -716,6 +735,9 @@ int isDefault(){
 }
 int isBreak(){
     return current_token->type == BREAK;
+}
+int isContinue(){
+    return current_token->type == CONTINUE;
 }
 int isPrint() {
     return current_token->type == PRINT_KWD;
@@ -1004,9 +1026,13 @@ void beginVarScope(void) {
 void endVarScope(void) {
     namespace_head = namespace_head->next;
     if (namespace_head->next_var_num % 2 == 0) {
-        printf("    lea %d(%%rbp),%%rsp\n", 8 * (namespace_head->next_var_num));
+        if (!isWindow) {
+            printf("    lea %d(%%rbp),%%rsp\n", 8 * (namespace_head->next_var_num));
+        }
     } else {
-        printf("    lea %d(%%rbp),%%rsp\n", 8 * (namespace_head->next_var_num + 1));
+        if (!isWindow) {
+            printf("    lea %d(%%rbp),%%rsp\n", 8 * (namespace_head->next_var_num + 1));
+        }
     }
 }
 
@@ -1091,6 +1117,15 @@ void initVars(struct trie_node *node_ptr) {
     for (int child_num = 0; child_num < 36; child_num++) {
         initVars(node_ptr->children[child_num]);
     }
+}
+
+int isFunctionName(char* id){
+    for(int i = 0; i < numFunctions; i++){
+        if(strcmp(id,functionNames[i]) == 0 ){
+  return 1;
+        }
+    }
+    return 0;
 }
 
 void expression(int perform);
@@ -1178,10 +1213,16 @@ void e1(int perform) {
 		get (id, "mov");
 		printf("    add $1, %%rax\n");	
 		}
-	}
-	else if (isLeft()) {
+	}else if (isMinusMinus()){
+		consume();
+		if (perform){
+		get (id, "mov");
+		printf("   sub $1, %%rax\n");
+		}
+	}else if (isLeft()) {
             consume();
             int params = 0;
+            //int paramId = -1;
             while (!isRight()) {
                 expression(perform);
                 if (isComma()) {
@@ -1209,7 +1250,16 @@ void e1(int perform) {
                 for (int index = 0; index < params; index++) {
                     printf("    popq %d(%%rsp)\n", 8 * (params - 1));
                 }
-                printf("    call %s_fun\n", id);
+                //TODO
+                //Check here if the id is the name of a parameter, in which case
+                //Return the string that the id points to rather then the id itself
+                int param_index = getVarNum(id);
+                if(param_index > 0){
+                    //printf("    mov %%rax,%d(%%rbp)\n", 8 * var_num);
+                    printf("    call *%d(%%rbp)\n",8*param_index);
+                } else {
+                    printf("    call %s_fun\n", id);
+                }
                 printf("    add $%d,%%rsp\n", 8 * params);
             }
         } else if (isDot()) { //Is a struct variable
@@ -1265,7 +1315,11 @@ void e1(int perform) {
             }
         } else {
             if (perform) {
-                get(id, "mov");
+                if(isFunctionName(id)){
+                    printf("    mov $%s_fun,%%rax\n",id);
+                } else {
+                    get(id, "mov");
+                }
             }
         }
         if (perform) {
@@ -1694,6 +1748,7 @@ int statement(int perform) {
         consume();
         return 1;
     } else if (isWindowStart()) {
+        isWindow = 1;
         consume();
         if(!isInt()){
             error(GENERAL, "Expected window x size after declaring window start block\n");
@@ -1794,6 +1849,7 @@ int statement(int perform) {
                 statement(perform);
             }
         }
+        isWindow = 0;
         consume();
         return 1;   
     } else if (isIf()) {
@@ -1822,6 +1878,8 @@ int statement(int perform) {
         }
         return 1;
     } else if (isWhile()) {
+        int locwhilenum = while_count;
+        globalbreakcount = while_count;
         unsigned int while_num = while_count++;
         consume();
         if (perform) {
@@ -1839,6 +1897,7 @@ int statement(int perform) {
             printf("    jmp while_begin_%u\n", while_num);
             printf("while_end_%u:\n", while_num);
         }
+        globalbreakcount = locwhilenum;
         return 1;
     } else if (isFor()){
         //test
@@ -2174,7 +2233,22 @@ int statement(int perform) {
         consume();
         return 1;
     } else if (isBreak()){
-        consume();
+        if(perform == 0){
+         consume();
+        }
+        else{
+         printf("    jmp while_end_%u\n", globalbreakcount);
+         consume();
+        }
+        return 1;
+    } else if (isContinue()){
+        if(perform == 0){
+         consume();
+        }
+        else{
+         printf("    jmp while_begin_%u\n", globalbreakcount);
+         consume();
+        }
         return 1;
     } else {
         return 0;
@@ -2195,6 +2269,9 @@ void function(void) {
         error(GENERAL, "Invalid function name\n");
     }
     char *id = getId();
+    functionNames = realloc(functionNames,(numFunctions + 1) * sizeof(char*));
+    functionNames[numFunctions] = strdup(id);
+    numFunctions++;
     consume();
     function_name = id;
     printf("%s_fun:\n", id);
@@ -2774,7 +2851,6 @@ void compile(void) {
     printf("rand_seed:\n");
     printf("    .quad 10\n");
     initVars(namespace_head->root_ptr);
-
     free(id_buffer);
     freeTrie(namespace_head->root_ptr);
     free(namespace_head);

@@ -8,31 +8,32 @@ struct point {
 }
 
 fun main() {
-    long x = 10 A 10; #x = 100
-    print(x);
-    long y = x B x; #y = 0
-    print(y)
-    long z = arraytest();
-    long q = structtest();
+    long x = 10 A 10;
+    print x;
+    long y = x B x; 
+    print(y);
+    print arraytest() A structtest();
 }
 
-fun arraytest() { #tests array capabilities
+fun arraytest() {
     long array[4];
     array[0] = 2;
     array[1] = 3;
-    array[2] = array[0] A array[1]; #6
-    array[3] = array[2] B array[2]; #0
-    print(array[0]);
-    print(array[1]);
-    print(array[2]);
-    print(array[3]);
+    array[2] = array[0] A array[1];
+    array[3] = array[2] B array[2];
+    print array[0];
+    print array[1];
+    print array[2];
+    print array[3];
+    return 4;
 }
 
 fun structtest() {
-    point structpoint;
-    structpoint.x = 10;
-    structpoint.y = 1;
-    print(structpoint.x C structpoint.y); #print 20
+    point strpoint;
+    strpoint.x = 3;
+    strpoint.y = 4;
+    print strpoint.x A strpoint.y;
+    return 3;
 }
 
 
