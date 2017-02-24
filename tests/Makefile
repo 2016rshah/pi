@@ -1,20 +1,20 @@
-TESTS=$(sort $(wildcard *.fun))
+TESTS=$(sort $(wildcard *.pi))
 ETESTS=$(sort $(wildcard *.error))
 GTESTS=$(sort $(wildcard *.graphics))
 ITESTS=$(sort $(wildcard *.io))
-PROGS=$(subst .fun,,$(TESTS))
+PROGS=$(subst .pi,,$(TESTS))
 EPROGS=$(subst .error,,$(ETESTS))
 GPROGS=$(subst .graphics,,$(GTESTS))
 IPROGS=$(subst .io,,$(ITESTS))
-OUTS=$(patsubst %.fun,%.out,$(TESTS))
+OUTS=$(patsubst %.pi,%.out,$(TESTS))
 EOUTS=$(patsubst %.error,%.out,$(ETESTS))
 GOUTS=$(patsubst %.graphics,%.out,$(GTESTS))
 IOUTS=$(patsubst %.io,%.out,$(ITESTS))
-DIFFS=$(patsubst %.fun,%.diff,$(TESTS))
+DIFFS=$(patsubst %.pi,%.diff,$(TESTS))
 EDIFFS=$(patsubst %.error,%.diff,$(ETESTS))
 GDIFFS=$(patsubst %.graphics,%.diff,$(GTESTS))
 IDIFFS=$(patsubst %.io,%.diff,$(ITESTS))
-RESULTS=$(patsubst %.fun,%.result,$(TESTS))
+RESULTS=$(patsubst %.pi,%.result,$(TESTS))
 
 CFILES=$(sort $(wildcard *.c))
 OFILES=$(patsubst %.c,%.o,$(CFILES))
@@ -37,9 +37,9 @@ $(OFILES) : %.o : %.c Makefile
 	@echo "========= error test $* ========="
 	./p5 < $*.error> $*.S
 
-%.S : %.fun p5
+%.S : %.pi p5
 	@echo "========== $* =========="
-	./p5 < $*.fun > $*.S
+	./p5 < $*.pi > $*.S
 
 %.S : %.graphics p5
 	@echo "========== graphics $* ==========="
