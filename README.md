@@ -1,4 +1,4 @@
-#HOT PI
+# HOT PI
 
 ```
 team hot pi more like team not high amirite
@@ -10,9 +10,9 @@ and then team not bye
 cuz team hot pi
 ```
 
-#Pi Features
+# Pi Features
 
-##Language Constructs
+## Language Constructs
 - Primitive Type System
  - Booleans
  - Longs
