@@ -14,9 +14,9 @@ cuz team hot pi
 
 ## Language Constructs
 - Primitive Type System
- - Booleans
- - Longs
- - Chars
+  - Booleans
+  - Longs
+  - Chars
 - Pointers
 - Switch Statements
 - Arrays
@@ -27,10 +27,10 @@ cuz team hot pi
 - Structs
 - Scoped variables
 - Mature Error Reporting
- - Mispelled keyword detection
- - Useful messages for all errors
- - Mismatched brackets/parentheses and reconstructed expressions
- - Color-coded output
+  - Mispelled keyword detection
+  - Useful messages for all errors
+  - Mismatched brackets/parentheses and reconstructed expressions
+  - Color-coded output
  
 ## Built-in Support for
 - Sound
@@ -42,13 +42,13 @@ cuz team hot pi
 - Bell Keyword
 
 
-#Contributing
+# Contributing
 
-##Github reminders
+## Github reminders
 
 *Don't forget to `git pull` before doing anything in order to avoid merge conflicts. When in doubt, `git pull` before making any changes to the directory (editing files, etc.). Get into the habit of doing git pull as soon as you cd into the directory and before you leave it.*
 
-##How to do stuff:
+## How to do stuff:
 
 Begin to do stuff:
 
@@ -68,17 +68,17 @@ After someone else does something, you may want to incorporate that into your br
 - If you are going to add more changes, switch back to your branch.
 
 
-###Adding/Removing/Editing tests
+### Adding/Removing/Editing tests
 
 The test can be found in their own directory. Basically, you make changes to the code in the p5.c file in the main directory, but edit tests in the test directory. Then, you can run `make clean test` from the main directory and everything will get synced up and run. Message me if you have any questions/I didn't explain this well enough. 
 
-##Guidelines:
+## Guidelines:
 
-###General
+### General
 - `master` should only contain functioning code (see instructions above)
 - Whenever you add a test called like `foo.fun` and `foo.ok` run the following command also: `printf("\nfoo\n") >> .gitignore` which will make sure unecessary files don't flood our folder (obviously replace foo with the name of the test)
 
-###Style 
+### Style 
 If anyone cares to maintain the style of my original code:
 - Indent with 4 spaces
 - `{` on same line
@@ -89,7 +89,7 @@ If anyone cares to maintain the style of my original code:
 - variables, structs, and unions use `_` separated lowercase
 - function names are in camelCase with the initial letter in lowercase
 
-###Documentation
+### Documentation
 - Tokenization
   - The input is converted into a list of tokens. 
   - To add a new token, create a new entry in the `token_type` enum and add a conditional case inside `getToken`. If the token is a keyword, the additional case should be inside the `islower` case.
