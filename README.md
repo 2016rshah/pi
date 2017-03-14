@@ -12,6 +12,10 @@ cuz team hot pi
 
 # Pi Features
 
+This project is a compiler from a C-like language of our invention called `Hot-Pi` to x_86 Assembly.
+
+It was made by Aaditya Murthy, Jake Crabtree, Jake Crouch, Liz Rego, Daniel Wong, Mayuri Raja, Misha Shaposhnikov, Rishab Goel, Rushi Shah, Sindhu Reddy, Smitha Nagar, and Jiaming Chen primarily over the course of one week.
+
 ## Language Constructs
 - Primitive Type System
   - Booleans
